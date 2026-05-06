@@ -25,10 +25,6 @@ server:
 oci:
   vault:
     secret-ids: "ocid1.vaultsecret.oc1.ap-chuncheon-1.amaaaaaat2m5lbqano5ocm3fee2ktmqz6wfyp45qegophj2gzmmwlpesejua"
-  storage:
-    namespace: ax1dvc8vmenm
-    region: ap-chuncheon-1
-    bucket: snuclear-asset-dev
 
 course-sync:
   auto:
@@ -43,4 +39,3 @@ course-sync:
   defaultTarget:
     year: 2026
     semester: SUMMER
-

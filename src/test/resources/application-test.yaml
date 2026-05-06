@@ -26,9 +26,3 @@ practice:
     time-limit-seconds: 300
     early-click-recording-window-ms: 1000  # Early click 기록 범위 (ms)
     lock-ttl-seconds: 10  # 서버 크래시 시 안전장치
-
-oci:
-  storage:
-    namespace: "test-namespace"
-    bucket: "test-bucket"
-    region: "ap-seoul-1"

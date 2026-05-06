@@ -2,7 +2,6 @@ package com.wafflestudio.team8server.user.service
 
 import com.wafflestudio.team8server.common.dto.PageInfo
 import com.wafflestudio.team8server.common.exception.BadRequestException
-import com.wafflestudio.team8server.common.exception.ObjectStorageNotConfiguredException
 import com.wafflestudio.team8server.common.exception.ResourceNotFoundException
 import com.wafflestudio.team8server.common.exception.UnauthorizedException
 import com.wafflestudio.team8server.common.extension.ensureNotNull
@@ -14,9 +13,6 @@ import com.wafflestudio.team8server.practice.repository.PracticeDetailRepository
 import com.wafflestudio.team8server.practice.repository.PracticeLogRepository
 import com.wafflestudio.team8server.user.dto.ChangePasswordRequest
 import com.wafflestudio.team8server.user.dto.MyPageResponse
-import com.wafflestudio.team8server.user.dto.PresignedUrlRequest
-import com.wafflestudio.team8server.user.dto.PresignedUrlResponse
-import com.wafflestudio.team8server.user.dto.UpdateProfileImageRequest
 import com.wafflestudio.team8server.user.dto.UpdateProfileRequest
 import com.wafflestudio.team8server.user.enum.SocialProvider
 import com.wafflestudio.team8server.user.repository.LocalCredentialRepository
@@ -24,7 +20,6 @@ import com.wafflestudio.team8server.user.repository.SocialCredentialRepository
 import com.wafflestudio.team8server.user.repository.UserRepository
 import com.wafflestudio.team8server.user.service.social.google.GoogleOAuthClient
 import com.wafflestudio.team8server.user.service.social.kakao.KakaoOAuthClient
-import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -42,8 +37,6 @@ class MyPageService(
     private val socialCredentialRepository: SocialCredentialRepository,
     private val kakaoOAuthClient: KakaoOAuthClient,
     private val googleOAuthClient: GoogleOAuthClient,
-    @Autowired(required = false)
-    private val objectStorageService: ObjectStorageService?,
 ) {
     @Transactional(readOnly = true)
     fun getMyPage(userId: Long): MyPageResponse {
@@ -211,63 +204,5 @@ class MyPageService(
             successCount = successCount,
             attempts = attempts,
         )
-    }
-
-    fun generatePresignedUrl(
-        userId: Long,
-        request: PresignedUrlRequest,
-    ): PresignedUrlResponse {
-        val service = objectStorageService ?: throw ObjectStorageNotConfiguredException()
-        val result =
-            service.generatePresignedUrl(
-                userId = userId,
-                extension = request.extension,
-                contentType = request.contentType,
-            )
-        return PresignedUrlResponse(
-            presignedUrl = result.presignedUrl,
-            imageUrl = result.imageUrl,
-        )
-    }
-
-    @Transactional
-    fun updateProfileImage(
-        userId: Long,
-        request: UpdateProfileImageRequest,
-    ) {
-        val service = objectStorageService ?: throw ObjectStorageNotConfiguredException()
-        val user =
-            userRepository
-                .findById(userId)
-                .orElseThrow { ResourceNotFoundException("사용자를 찾을 수 없습니다") }
-
-        // 기존 이미지가 Object Storage key인 경우만 삭제 (소셜 로그인 URL은 무시)
-        user.profileImageUrl?.let { existing ->
-            if (!existing.startsWith("http://") && !existing.startsWith("https://")) {
-                service.deleteObject(existing)
-            }
-        }
-
-        // 새 이미지 URL에서 key 추출 후 저장
-        val newKey = service.extractKeyFromUrl(request.imageUrl)
-        user.profileImageUrl = newKey
-    }
-
-    @Transactional
-    fun deleteProfileImage(userId: Long) {
-        val service = objectStorageService ?: throw ObjectStorageNotConfiguredException()
-        val user =
-            userRepository
-                .findById(userId)
-                .orElseThrow { ResourceNotFoundException("사용자를 찾을 수 없습니다") }
-
-        // 기존 이미지가 Object Storage key인 경우만 삭제 (소셜 로그인 URL은 무시)
-        user.profileImageUrl?.let { existing ->
-            if (!existing.startsWith("http://") && !existing.startsWith("https://")) {
-                service.deleteObject(existing)
-            }
-        }
-
-        user.profileImageUrl = null
     }
 }

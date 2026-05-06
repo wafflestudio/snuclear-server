@@ -92,9 +92,6 @@
 | | `PATCH /api/mypage/password` | 비밀번호 변경 |
 | | `GET /api/mypage/practice-sessions` | 연습 세션 이력 조회 |
 | | `GET /api/mypage/practice-sessions/{practiceLogId}` | 연습 세션 상세 조회 |
-| | `POST /api/mypage/profile-image/presigned-url` | 프로필 이미지 업로드 URL 발급 |
-| | `PATCH /api/mypage/profile-image` | 프로필 이미지 저장 |
-| | `DELETE /api/mypage/profile-image` | 프로필 이미지 삭제 |
 | | `DELETE /api/mypage` | 회원 탈퇴 |
 
 ## 프로젝트 구조
