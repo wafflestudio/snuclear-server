@@ -90,14 +90,6 @@ class UserNotFoundException(
         errorCode = "USER_NOT_FOUND",
     )
 
-// Object Storage가 설정되지 않은 경우 (로컬/테스트 환경)
-class ObjectStorageNotConfiguredException(
-    message: String = "Object Storage가 설정되지 않았습니다. 이 기능은 dev/prod 환경에서만 사용 가능합니다.",
-) : BusinessException(
-        message = message,
-        errorCode = "OBJECT_STORAGE_NOT_CONFIGURED",
-    )
-
 // 이미 동기화 작업이 실행되고 있는 경우
 class CourseSyncAlreadyRunningException(
     message: String = "이미 동기화 작업이 실행 중입니다",

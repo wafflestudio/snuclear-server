@@ -214,18 +214,6 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(response)
     }
 
-    @ExceptionHandler(ObjectStorageNotConfiguredException::class)
-    fun handleObjectStorageNotConfiguredException(e: ObjectStorageNotConfiguredException): ResponseEntity<ErrorResponse> {
-        val response =
-            ErrorResponse(
-                status = HttpStatus.SERVICE_UNAVAILABLE.value(), // 503
-                error = "Service Unavailable",
-                message = e.message,
-                errorCode = e.errorCode,
-            )
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response)
-    }
-
     @ExceptionHandler(
         DeadlockLoserDataAccessException::class,
         CannotAcquireLockException::class,

@@ -7,9 +7,6 @@ import com.wafflestudio.team8server.practice.dto.PracticeSessionListResponse
 import com.wafflestudio.team8server.user.dto.ChangePasswordRequest
 import com.wafflestudio.team8server.user.dto.DeleteAccountRequest
 import com.wafflestudio.team8server.user.dto.MyPageResponse
-import com.wafflestudio.team8server.user.dto.PresignedUrlRequest
-import com.wafflestudio.team8server.user.dto.PresignedUrlResponse
-import com.wafflestudio.team8server.user.dto.UpdateProfileImageRequest
 import com.wafflestudio.team8server.user.dto.UpdateProfileRequest
 import com.wafflestudio.team8server.user.service.MyPageService
 import io.swagger.v3.oas.annotations.Operation
@@ -27,7 +24,6 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -87,7 +83,7 @@ class MyPageController(
 
     @Operation(
         summary = "닉네임 수정",
-        description = "닉네임을 수정합니다. 프로필 이미지는 /api/mypage/profile-image API를 사용하세요.",
+        description = "닉네임을 수정합니다.",
     )
     @ApiResponses(
         value = [
@@ -327,144 +323,4 @@ class MyPageController(
         @Parameter(hidden = true) @LoggedInUserId userId: Long,
         @RequestBody(required = false) request: DeleteAccountRequest?,
     ) = myPageService.deleteAccount(userId, request?.password)
-
-    @Operation(
-        summary = "프로필 이미지 업로드용 Presigned URL 생성",
-        description =
-            "Object Storage에 프로필 이미지를 업로드하기 위한 Presigned URL을 생성합니다. " +
-                "반환된 URL로 PUT 요청을 보내 이미지를 업로드할 수 있습니다.",
-    )
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "200",
-                description = "Presigned URL 생성 성공",
-                content = [Content(schema = Schema(implementation = PresignedUrlResponse::class))],
-            ),
-            ApiResponse(
-                responseCode = "400",
-                description = "유효성 검증 실패",
-                content = [
-                    Content(
-                        schema = Schema(implementation = ErrorResponse::class),
-                        examples = [
-                            ExampleObject(
-                                name = "validation-error",
-                                summary = "유효성 검증 실패",
-                                value = """
-                                {
-                                  "timestamp": "2026-01-22T12:00:00",
-                                  "status": 400,
-                                  "error": "Bad Request",
-                                  "message": "입력 값이 유효하지 않습니다",
-                                  "errorCode": "VALIDATION_FAILED",
-                                  "validationErrors": {
-                                    "extension": "지원하지 않는 파일 형식입니다"
-                                  }
-                                }
-                                """,
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            ApiResponse(
-                responseCode = "401",
-                description = "인증 실패",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-            ),
-        ],
-    )
-    @PostMapping("/profile-image/presigned-url")
-    @ResponseStatus(HttpStatus.OK)
-    fun generatePresignedUrl(
-        @Parameter(hidden = true) @LoggedInUserId userId: Long,
-        @Valid @RequestBody request: PresignedUrlRequest,
-    ): PresignedUrlResponse = myPageService.generatePresignedUrl(userId, request)
-
-    @Operation(
-        summary = "프로필 이미지 URL 저장",
-        description =
-            "Object Storage에 업로드 완료된 이미지의 URL을 DB에 저장합니다. " +
-                "기존 프로필 이미지가 있으면 Object Storage에서 삭제됩니다.",
-    )
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "204",
-                description = "프로필 이미지 저장 성공",
-            ),
-            ApiResponse(
-                responseCode = "400",
-                description = "유효성 검증 실패",
-                content = [
-                    Content(
-                        schema = Schema(implementation = ErrorResponse::class),
-                        examples = [
-                            ExampleObject(
-                                name = "validation-error",
-                                summary = "유효성 검증 실패",
-                                value = """
-                                {
-                                  "timestamp": "2026-01-22T12:00:00",
-                                  "status": 400,
-                                  "error": "Bad Request",
-                                  "message": "입력 값이 유효하지 않습니다",
-                                  "errorCode": "VALIDATION_FAILED",
-                                  "validationErrors": {
-                                    "imageUrl": "이미지 URL은 필수입니다"
-                                  }
-                                }
-                                """,
-                            ),
-                        ],
-                    ),
-                ],
-            ),
-            ApiResponse(
-                responseCode = "401",
-                description = "인증 실패",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-            ),
-            ApiResponse(
-                responseCode = "404",
-                description = "사용자를 찾을 수 없음",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-            ),
-        ],
-    )
-    @PatchMapping("/profile-image")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun updateProfileImage(
-        @Parameter(hidden = true) @LoggedInUserId userId: Long,
-        @Valid @RequestBody request: UpdateProfileImageRequest,
-    ) = myPageService.updateProfileImage(userId, request)
-
-    @Operation(
-        summary = "프로필 이미지 삭제",
-        description = "프로필 이미지를 삭제합니다. Object Storage에서 이미지가 삭제되고 DB에서 URL이 제거됩니다.",
-    )
-    @ApiResponses(
-        value = [
-            ApiResponse(
-                responseCode = "204",
-                description = "프로필 이미지 삭제 성공",
-            ),
-            ApiResponse(
-                responseCode = "401",
-                description = "인증 실패",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-            ),
-            ApiResponse(
-                responseCode = "404",
-                description = "사용자를 찾을 수 없음",
-                content = [Content(schema = Schema(implementation = ErrorResponse::class))],
-            ),
-        ],
-    )
-    @DeleteMapping("/profile-image")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun deleteProfileImage(
-        @Parameter(hidden = true) @LoggedInUserId userId: Long,
-    ) = myPageService.deleteProfileImage(userId)
 }

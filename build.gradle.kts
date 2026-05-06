@@ -78,10 +78,6 @@ dependencies {
 
     // OCI Vault (spring-waffle)
     implementation("com.wafflestudio.spring:spring-boot-starter-waffle-oci-vault:2.1.0")
-
-    // OCI SDK for Object Storage
-    implementation("com.oracle.oci.sdk:oci-java-sdk-objectstorage:3.57.2")
-    implementation("com.oracle.oci.sdk:oci-java-sdk-common-httpclient-jersey3:3.57.2")
 }
 
 configurations.all {
