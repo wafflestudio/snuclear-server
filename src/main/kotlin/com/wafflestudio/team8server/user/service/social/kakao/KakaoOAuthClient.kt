@@ -3,11 +3,11 @@ package com.wafflestudio.team8server.user.service.social.kakao
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.wafflestudio.team8server.common.exception.UnauthorizedException
 import com.wafflestudio.team8server.config.OAuthProperties
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpEntity
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.MediaType
-import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest.authorizationCode
 import org.springframework.stereotype.Component
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.util.MultiValueMap
@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate
 class KakaoOAuthClient(
     private val props: OAuthProperties,
 ) {
+    private val log = LoggerFactory.getLogger(KakaoOAuthClient::class.java)
     private val restTemplate = RestTemplate()
 
     fun getUserInfo(
@@ -74,6 +75,13 @@ class KakaoOAuthClient(
         redirectUri: String?,
     ): String {
         val kakao = props.kakao
+        log.info(
+            "Kakao token exchange requested: clientIdPresent={}, clientIdLength={}, clientSecretPresent={}, redirectUri={}",
+            kakao.clientId.isNotBlank(),
+            kakao.clientId.length,
+            !kakao.clientSecret.isNullOrBlank(),
+            redirectUri,
+        )
 
         val headers =
             HttpHeaders().apply {
@@ -105,14 +113,25 @@ class KakaoOAuthClient(
             if (body.accessToken.isBlank()) throw UnauthorizedException("카카오 토큰 발급에 실패했습니다")
             return body.accessToken
         } catch (e: HttpStatusCodeException) {
+            log.warn(
+                "Kakao token exchange failed: status={}, responseBody={}",
+                e.statusCode,
+                sanitizeOAuthErrorBody(e.responseBodyAsString),
+            )
             throw UnauthorizedException("카카오 토큰 발급에 실패했습니다")
         } catch (e: Exception) {
+            log.warn(
+                "Kakao token exchange failed before response: cause={}({})",
+                e::class.simpleName,
+                e.message,
+            )
             throw UnauthorizedException("카카오 토큰 발급에 실패했습니다")
         }
     }
 
     private fun fetchUserInfo(accessToken: String): KakaoUserInfo {
         val kakao = props.kakao
+        log.info("Kakao user info requested")
 
         val headers =
             HttpHeaders().apply {
@@ -140,11 +159,28 @@ class KakaoOAuthClient(
                 profileImageUrl = null, // me.kakaoAccount?.profile?.profileImageUrl,
             )
         } catch (e: HttpStatusCodeException) {
+            log.warn(
+                "Kakao user info request failed: status={}, responseBody={}",
+                e.statusCode,
+                sanitizeOAuthErrorBody(e.responseBodyAsString),
+            )
             throw UnauthorizedException("카카오 사용자 정보를 가져오지 못했습니다")
         } catch (e: Exception) {
+            log.warn(
+                "Kakao user info request failed before response: cause={}({})",
+                e::class.simpleName,
+                e.message,
+            )
             throw UnauthorizedException("카카오 사용자 정보를 가져오지 못했습니다")
         }
     }
+
+    private fun sanitizeOAuthErrorBody(body: String): String =
+        body
+            .replace(
+                Regex("(?i)(\"(?:access_token|refresh_token|id_token|client_secret|code)\"\\s*:\\s*\")[^\"]+\""),
+            ) { matchResult -> "${matchResult.groupValues[1]}***\"" }
+            .take(500)
 }
 
 data class KakaoUserInfo(

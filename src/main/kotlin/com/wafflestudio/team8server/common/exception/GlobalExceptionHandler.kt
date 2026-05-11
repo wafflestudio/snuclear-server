@@ -1,7 +1,7 @@
 package com.wafflestudio.team8server.common.exception
 
-import com.wafflestudio.team8server.course.service.CourseExcelParser
 import io.swagger.v3.oas.annotations.media.Schema
+import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.dao.CannotAcquireLockException
 import org.springframework.dao.DataIntegrityViolationException
@@ -36,6 +36,8 @@ data class ErrorResponse(
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
+    private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
+
     // NullSafety에 위배된 예외 처리 -> 404 NOT FOUND (데이터 없음)
     @ExceptionHandler(ResourceNotFoundException::class)
     fun handleResourceNotFoundException(e: ResourceNotFoundException): ResponseEntity<ErrorResponse> {
@@ -88,7 +90,10 @@ class GlobalExceptionHandler {
 
     // 유효성 검증 실패 예외 처리 → 400 BAD_REQUEST
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun handleValidationException(e: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
+    fun handleValidationException(
+        e: MethodArgumentNotValidException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> {
         // 모든 검증 에러를 Map으로 변환 (필드명 → 에러 메시지)
         val errors =
             e.bindingResult.allErrors.associate { error ->
@@ -96,6 +101,12 @@ class GlobalExceptionHandler {
                 val message = error.defaultMessage // 에러 메시지 (@NotBlank의 message)
                 field to message // map pair 생성
             }
+        log.warn(
+            "Request validation failed: method={}, path={}, errors={}",
+            request.method,
+            request.requestURI,
+            errors,
+        )
 
         val response =
             ErrorResponse(
@@ -133,7 +144,18 @@ class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
-    fun handleHttpMessageNotReadableException(e: HttpMessageNotReadableException): ResponseEntity<ErrorResponse> {
+    fun handleHttpMessageNotReadableException(
+        e: HttpMessageNotReadableException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> {
+        log.warn(
+            "Request body parsing failed: method={}, path={}, contentType={}, cause={}({})",
+            request.method,
+            request.requestURI,
+            request.contentType,
+            e::class.simpleName,
+            e.message,
+        )
         val response =
             ErrorResponse(
                 status = HttpStatus.BAD_REQUEST.value(),
@@ -146,7 +168,16 @@ class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(UnauthorizedException::class)
-    fun handleUnauthorizedException(e: UnauthorizedException): ResponseEntity<ErrorResponse> {
+    fun handleUnauthorizedException(
+        e: UnauthorizedException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ErrorResponse> {
+        log.warn(
+            "Unauthorized request handled: method={}, path={}, message={}",
+            request.method,
+            request.requestURI,
+            e.message,
+        )
         val response =
             ErrorResponse(
                 status = HttpStatus.UNAUTHORIZED.value(), // 401
@@ -184,8 +215,6 @@ class GlobalExceptionHandler {
     // 예상하지 못한 예외를 잡는 handler
     @ExceptionHandler(Exception::class)
     fun handleUnexpectedException(e: Exception): ResponseEntity<ErrorResponse> {
-        // 배포 시 로깅 (logger.error("Unexpected error", e))
-        val log = LoggerFactory.getLogger(CourseExcelParser::class.java)
         log.error("UNEXPECTED_ERROR", e)
         val response =
             ErrorResponse(
@@ -219,7 +248,6 @@ class GlobalExceptionHandler {
         CannotAcquireLockException::class,
     )
     fun handleDbLockException(e: Exception): ResponseEntity<ErrorResponse> {
-        val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
         log.error("DB_LOCK_ERROR", e)
 
         val response =
@@ -234,7 +262,6 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(QueryTimeoutException::class)
     fun handleQueryTimeoutException(e: QueryTimeoutException): ResponseEntity<ErrorResponse> {
-        val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
         log.error("DB_TIMEOUT", e)
 
         val response =
@@ -249,7 +276,6 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleDataIntegrityViolationException(e: DataIntegrityViolationException): ResponseEntity<ErrorResponse> {
-        val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
         log.error("DB_CONSTRAINT_VIOLATION", e)
 
         val response =
