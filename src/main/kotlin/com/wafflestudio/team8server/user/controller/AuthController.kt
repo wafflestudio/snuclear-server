@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -33,6 +34,8 @@ class AuthController(
     private val authService: AuthService,
     private val socialAuthService: SocialAuthService,
 ) {
+    private val log = LoggerFactory.getLogger(AuthController::class.java)
+
     @Operation(
         summary = "회원가입",
         description =
@@ -263,7 +266,14 @@ class AuthController(
     @ResponseStatus(HttpStatus.OK)
     fun kakaoLogin(
         @Valid @RequestBody request: SocialLoginRequest,
-    ): LoginResponse = socialAuthService.kakaoLogin(request.code, request.redirectUri)
+    ): LoginResponse {
+        log.info(
+            "Social login request received: provider=kakao, codePresent={}, redirectUri={}",
+            request.code.isNotBlank(),
+            request.redirectUri,
+        )
+        return socialAuthService.kakaoLogin(request.code, request.redirectUri)
+    }
 
     @Operation(
         summary = "구글 소셜 로그인",
@@ -340,7 +350,14 @@ class AuthController(
     @ResponseStatus(HttpStatus.OK)
     fun googleLogin(
         @Valid @RequestBody request: SocialLoginRequest,
-    ): LoginResponse = socialAuthService.googleLogin(request.code, request.redirectUri)
+    ): LoginResponse {
+        log.info(
+            "Social login request received: provider=google, codePresent={}, redirectUri={}",
+            request.code.isNotBlank(),
+            request.redirectUri,
+        )
+        return socialAuthService.googleLogin(request.code, request.redirectUri)
+    }
 
     @Operation(
         summary = "로그아웃",

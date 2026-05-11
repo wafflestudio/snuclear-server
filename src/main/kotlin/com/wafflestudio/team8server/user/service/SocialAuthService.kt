@@ -14,6 +14,7 @@ import com.wafflestudio.team8server.user.service.social.google.GoogleIdTokenVeri
 import com.wafflestudio.team8server.user.service.social.google.GoogleOAuthClient
 import com.wafflestudio.team8server.user.service.social.kakao.KakaoOAuthClient
 import com.wafflestudio.team8server.user.util.NicknameGenerator
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -26,15 +27,27 @@ class SocialAuthService(
     private val googleOAuthClient: GoogleOAuthClient,
     private val googleIdTokenVerifier: GoogleIdTokenVerifier,
 ) {
+    private val log = LoggerFactory.getLogger(SocialAuthService::class.java)
+
     @Transactional
     fun kakaoLogin(
         code: String,
         redirectUri: String?,
     ): LoginResponse {
+        log.info(
+            "Social login started: provider=kakao, redirectUri={}",
+            redirectUri,
+        )
         val kakaoUserInfo =
             try {
                 kakaoOAuthClient.getUserInfo(code, redirectUri)
             } catch (e: Exception) {
+                log.warn(
+                    "Social login failed during OAuth exchange: provider=kakao, redirectUri={}, cause={}({})",
+                    redirectUri,
+                    e::class.simpleName,
+                    e.message,
+                )
                 throw UnauthorizedException("카카오 인증에 실패했습니다")
             }
 
@@ -44,6 +57,7 @@ class SocialAuthService(
 
         val existingCredential = socialCredentialRepository.findByProviderAndSocialId(provider, socialId)
         if (existingCredential != null) {
+            log.info("Social login succeeded: provider=kakao, existingUser=true")
             val accessToken = jwtTokenProvider.createToken(existingCredential.user.id.ensureNotNull(), existingCredential.user.role.name)
             return LoginResponse(
                 accessToken = accessToken,
@@ -67,6 +81,7 @@ class SocialAuthService(
                 socialId = socialId,
             )
         socialCredentialRepository.save(credential)
+        log.info("Social login succeeded: provider=kakao, existingUser=false")
 
         // JWT 발급 및 응답
         val accessToken = jwtTokenProvider.createToken(savedUser.id.ensureNotNull(), savedUser.role.name)
@@ -81,10 +96,20 @@ class SocialAuthService(
         code: String,
         redirectUri: String?,
     ): LoginResponse {
+        log.info(
+            "Social login started: provider=google, redirectUri={}",
+            redirectUri,
+        )
         val tokenResult =
             try {
                 googleOAuthClient.exchangeCodeForTokenResult(code, redirectUri)
             } catch (e: Exception) {
+                log.warn(
+                    "Social login failed during token exchange: provider=google, redirectUri={}, cause={}({})",
+                    redirectUri,
+                    e::class.simpleName,
+                    e.message,
+                )
                 throw UnauthorizedException("구글 인증에 실패했습니다")
             }
 
@@ -94,6 +119,11 @@ class SocialAuthService(
             try {
                 googleIdTokenVerifier.verifyAndExtract(idToken)
             } catch (e: Exception) {
+                log.warn(
+                    "Social login failed during id token verification: provider=google, cause={}({})",
+                    e::class.simpleName,
+                    e.message,
+                )
                 throw UnauthorizedException("구글 인증에 실패했습니다")
             }
 
@@ -106,6 +136,7 @@ class SocialAuthService(
             if (!tokenResult.refreshToken.isNullOrBlank()) {
                 existingCredential.refreshToken = tokenResult.refreshToken
             }
+            log.info("Social login succeeded: provider=google, existingUser=true")
             val accessToken = jwtTokenProvider.createToken(existingCredential.user.id.ensureNotNull(), existingCredential.user.role.name)
             return LoginResponse(
                 accessToken = accessToken,
@@ -128,6 +159,7 @@ class SocialAuthService(
                 refreshToken = tokenResult.refreshToken,
             )
         socialCredentialRepository.save(credential)
+        log.info("Social login succeeded: provider=google, existingUser=false")
 
         val accessToken = jwtTokenProvider.createToken(savedUser.id.ensureNotNull(), savedUser.role.name)
         return LoginResponse(
