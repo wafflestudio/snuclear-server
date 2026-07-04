@@ -1,0 +1,53 @@
+name: Capture enrollment latency
+
+# 수강신청 기간(장바구니 1일차 ~ 선착순 2일차)의 API 레이턴시 시계열을
+# Grafana(Prometheus)에서 떠서 monitoring/captures/<학기>.json.gz 로 보관한다.
+# 구간은 SNU 공식 일정(sugang-period)에서 자동 산출 — 매 학기 날짜 손댈 필요 없음.
+#
+# 사전 준비(1회): Grafana 서비스계정 API 토큰을 리포 secret GRAFANA_TOKEN 에 등록.
+#   (Grafana admin이 Administration > Service accounts 에서 Viewer 권한으로 발급)
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 매일 09:00 KST — 구간 종료 다음날 자동 캡처
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "구간 종료/중복 검사 무시하고 강제 캡처 (지금까지의 데이터로)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: capture-latency
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Capture latency time series
+        env:
+          GRAFANA_TOKEN: ${{ secrets.GRAFANA_TOKEN }}
+          FORCE: ${{ inputs.force && '1' || '' }}
+        run: python3 monitoring/capture_latency.py
+
+      - name: Commit capture if any
+        run: |
+          if [ -n "$(git status --porcelain monitoring/captures)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add monitoring/captures
+            git commit -m "chore: capture enrollment latency snapshot"
+            git push
+          else
+            echo "새 캡처 없음 — 커밋 생략."
+          fi
