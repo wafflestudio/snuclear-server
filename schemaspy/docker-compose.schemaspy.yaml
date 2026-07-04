@@ -1,0 +1,64 @@
+name: snuclear-schemaspy
+
+# SnuClear DB 스키마 문서 (SchemaSpy)
+# 흐름: MySQL 기동 → Flyway 마이그레이션 적용 → SchemaSpy HTML 생성 → nginx 서빙
+# 인증 없음. http://localhost:8081 로 바로 열림.
+#
+# 실행:  ./run.sh          (드라이버 자동 확보 + 아래 스택 기동)
+# 또는:  docker compose -f docker-compose.schemaspy.yaml up
+
+services:
+  # 1) 문서 생성 전용 MySQL (앱/개발 DB와 분리된 임시 인스턴스)
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: team8
+      MYSQL_USER: schemaspy
+      MYSQL_PASSWORD: schemaspy
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-proot", "-h", "localhost"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    # 포트 노출 불필요 (같은 compose 네트워크 내부에서만 접근)
+
+  # 2) 실제 서비스와 동일한 스키마를 만들기 위해 Flyway 마이그레이션 적용
+  flyway:
+    image: flyway/flyway:11
+    depends_on:
+      db:
+        condition: service_healthy
+    # list 형식으로 전달 (문자열이면 sh -c 로 해석돼 URL 의 & 가 백그라운드로 잘림)
+    command:
+      - "-url=jdbc:mysql://db:3306/team8?allowPublicKeyRetrieval=true&useSSL=false"
+      - "-user=schemaspy"
+      - "-password=schemaspy"
+      - "-connectRetries=30"
+      - "-locations=filesystem:/flyway/sql"
+      - "migrate"
+    volumes:
+      - ../src/main/resources/db/migration:/flyway/sql:ro
+
+  # 3) 스키마를 읽어 정적 HTML 문서 생성 (FK 관계 + 테이블별 컬럼 상세)
+  schemaspy:
+    image: schemaspy/schemaspy:6.2.4
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+    volumes:
+      - ./schemaspy.properties:/schemaspy.properties:ro
+      - ./drivers:/drivers:ro
+      - ./output:/output
+
+  # 4) 인증 없이 그대로 열리는 정적 서버
+  web:
+    image: nginx:alpine
+    depends_on:
+      schemaspy:
+        condition: service_completed_successfully
+    ports:
+      - "8081:80"
+    volumes:
+      - ./output:/usr/share/nginx/html:ro
+    restart: unless-stopped

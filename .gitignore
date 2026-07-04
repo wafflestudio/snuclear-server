@@ -8,6 +8,9 @@ build/
 ### Local-only ###
 src/main/resources/application-local.yaml
 
+### Generated: SchemaSpy DB docs (배포 시 CI 에서 생성) ###
+src/main/resources/static/schema/
+
 ### env files ###
 .env
 
