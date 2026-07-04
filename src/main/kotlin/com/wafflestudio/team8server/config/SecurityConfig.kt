@@ -70,6 +70,8 @@ class SecurityConfig(
                         "/api/leaderboard",
                         "/api/leaderboard/weekly",
                         "/api/v1/health",
+                        // Prometheus 스크래핑 — 클러스터 내부 접근만 허용, 외부는 Istio VirtualService에서 차단
+                        "/api/v1/prometheus",
                         "/api/v1/syncwithsite/sugang-period",
                         "/swagger-ui/**",
                         "/v3/api-docs/**",
