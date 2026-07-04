@@ -19,10 +19,22 @@ management:
     web:
       base-path: /api/v1
       exposure:
-        include: health,metrics
+        include: health,metrics,prometheus
   endpoint:
     health:
       enabled: true
+  # Micrometer -> Prometheus. 스크래핑 엔드포인트: /api/v1/prometheus
+  # (클러스터 내부 Prometheus만 접근, 외부는 Istio VirtualService에서 차단)
+  metrics:
+    tags:
+      application: snuclear-server   # Grafana에서 서비스 구분용 공통 태그 (env 태그는 프로필별로 추가)
+    distribution:
+      # http.server.requests 히스토그램 버킷 활성화 -> Grafana에서 p95/p99 계산 가능
+      percentiles-histogram:
+        "[http.server.requests]": true
+      # 명시적 SLO 버킷 — 이 경계들에서 quantile 정확도 상승 + SLO 위반 카운트 가능
+      slo:
+        "[http.server.requests]": 100ms,200ms,300ms,500ms,1s,2s
 
 # 수강신청 기간 설정
 enrollment-period:

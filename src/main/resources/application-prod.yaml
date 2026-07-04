@@ -22,6 +22,11 @@ jwt:
 server:
   port: 8080
 
+management:
+  metrics:
+    tags:
+      env: prod   # Grafana에서 dev/prod 구분
+
 oci:
   vault:
     secret-ids: "ocid1.vaultsecret.oc1.ap-chuncheon-1.amaaaaaat2m5lbqacc7fwpbm5vj2pqx27ljafd7gzaim3mwsmtao57hlokdq"
