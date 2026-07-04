@@ -74,6 +74,9 @@ class SecurityConfig(
                         "/swagger-ui/**",
                         "/v3/api-docs/**",
                         "/swagger-ui.html",
+                        // DB 스키마 문서(SchemaSpy) 정적 리소스 — 인증 없이 열람
+                        "/schema",
+                        "/schema/**",
                     ).permitAll()
                     .requestMatchers(
                         org.springframework.http.HttpMethod.GET,

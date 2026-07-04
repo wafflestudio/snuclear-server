@@ -37,6 +37,19 @@ jobs:
           java-version: 21
           cache: gradle
 
+      # SchemaSpy 이미지는 amd64 전용이라 arm64 러너에서 실행하려면 QEMU 에뮬레이션이 필요.
+      # 아래 두 단계는 continue-on-error: 문서 생성은 배포의 필수 요소가 아니므로
+      # 실패해도 배포를 막지 않는다(최악의 경우 그 회차 /schema 문서만 누락).
+      - name: Set up QEMU
+        continue-on-error: true
+        uses: docker/setup-qemu-action@v3
+
+      # DB 스키마 문서 생성 → src/main/resources/static/schema 에 배치.
+      # 다음 bootJar 단계에서 정적 리소스로 패키징되어 백엔드 도메인 /schema 에서 서빙됨.
+      - name: Generate DB schema docs (SchemaSpy)
+        continue-on-error: true
+        run: ./schemaspy/run.sh gen
+
       - name: Build Jar
         run: ./gradlew bootJar
 
