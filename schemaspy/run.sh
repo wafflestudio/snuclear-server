@@ -33,6 +33,10 @@ case "${1:-}" in
     # 산출물을 앱 정적 리소스 경로로 복사 → bootJar 에 포함되어 백엔드 도메인에서 서빙됨.
     ensure_driver
     rm -rf output && mkdir -p output
+    # SchemaSpy 컨테이너는 'java'(uid 1000) 유저로 실행된다. CI 러너 등 호스트 uid 가
+    # 다르면 마운트된 output 에 쓰지 못하므로(=Unable to create directory /output/tables)
+    # uid 의존성을 없애기 위해 쓰기 권한을 개방한다.
+    chmod 777 output
     echo "[run] 문서 생성 (MySQL → Flyway → SchemaSpy)"
     # run: 의존성(db healthy, flyway completed_successfully)을 조건대로 기동한 뒤 schemaspy 실행,
     #      schemaspy 종료코드를 그대로 반환한다. (web 서비스는 기동하지 않음)
@@ -56,6 +60,7 @@ case "${1:-}" in
   *)
     ensure_driver
     rm -rf output && mkdir -p output
+    chmod 777 output  # 컨테이너(java, uid 1000)가 호스트 uid 무관하게 쓸 수 있도록
     echo "[run] 스택 기동 (MySQL → Flyway → SchemaSpy → nginx)"
     $COMPOSE up --build --remove-orphans -d
     echo
