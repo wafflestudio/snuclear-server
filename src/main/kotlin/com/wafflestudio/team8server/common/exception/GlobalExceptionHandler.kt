@@ -231,6 +231,7 @@ class GlobalExceptionHandler {
         DuplicateCourseNumberInPreEnrollException::class,
         TimeConflictInPreEnrollException::class,
         CourseSyncAlreadyRunningException::class,
+        TourVersionConflictException::class,
     )
     fun handlePreEnrollConflict(e: BusinessException): ResponseEntity<ErrorResponse> {
         val response =
