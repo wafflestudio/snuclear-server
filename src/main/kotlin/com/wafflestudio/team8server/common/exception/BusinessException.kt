@@ -97,3 +97,10 @@ class CourseSyncAlreadyRunningException(
         message = message,
         errorCode = "COURSE_SYNC_ALREADY_RUNNING",
     )
+
+class TourVersionConflictException(
+    message: String = "현재 공개된 투어와 완료 요청의 투어 버전이 일치하지 않습니다",
+) : BusinessException(
+        message = message,
+        errorCode = "TOUR_VERSION_CONFLICT",
+    )

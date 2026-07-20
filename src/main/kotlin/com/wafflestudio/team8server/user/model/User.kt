@@ -8,6 +8,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import java.time.LocalDateTime
 
 @Entity
 @Table(name = "users")
@@ -19,6 +20,8 @@ class User(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     var role: UserRole = UserRole.USER,
+    @Column(nullable = true, columnDefinition = "DATETIME(6)")
+    var tourCompletedAt: LocalDateTime? = null,
     @Id
     // DB가 자동으로 ID 생성
     @GeneratedValue(strategy = GenerationType.IDENTITY)
