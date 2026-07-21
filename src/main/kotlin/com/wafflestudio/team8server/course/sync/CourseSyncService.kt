@@ -2,6 +2,7 @@ package com.wafflestudio.team8server.course.sync
 
 import com.wafflestudio.team8server.common.exception.CourseSyncAlreadyRunningException
 import com.wafflestudio.team8server.course.model.Semester
+import com.wafflestudio.team8server.course.service.CourseCartSnapshotService
 import com.wafflestudio.team8server.course.service.CourseService
 import com.wafflestudio.team8server.course.sync.model.CourseSyncRun
 import com.wafflestudio.team8server.course.sync.model.CourseSyncRunStatus
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class CourseSyncService(
     private val props: CourseSyncProperties,
     private val courseService: CourseService,
+    private val courseCartSnapshotService: CourseCartSnapshotService,
     private val excelClient: SugangCourseExcelClient,
     private val settingRepository: CourseSyncSettingRepository,
     private val runRepository: CourseSyncRunRepository,
@@ -103,6 +105,38 @@ class CourseSyncService(
                 ),
             )
             throw e
+        } finally {
+            running.set(false)
+        }
+    }
+
+    fun runCartSnapshotOnce(
+        year: Int,
+        semester: Semester,
+    ): Int {
+        if (!running.compareAndSet(false, true)) {
+            throw CourseSyncAlreadyRunningException()
+        }
+
+        try {
+            log.info("Course cart snapshot started (year={}, semester={})", year, semester)
+
+            val bytes = excelClient.downloadExcel(year, semester)
+            val mf =
+                ByteArrayMultipartFile(
+                    bytes = bytes,
+                    name = "file",
+                    originalFilename = "courses_${year}_${semester.name}.xls",
+                )
+            val captured = courseCartSnapshotService.capture(year, semester, mf)
+
+            log.info(
+                "Course cart snapshot success (year={}, semester={}, rows={})",
+                year,
+                semester,
+                captured,
+            )
+            return captured
         } finally {
             running.set(false)
         }
