@@ -79,4 +79,19 @@ class CourseSyncController(
             ),
         )
     }
+
+    @Operation(summary = "장바구니 스냅샷 수동 수집")
+    @PostMapping("/cart-snapshot/run")
+    fun runCartSnapshot(
+        @RequestBody request: CourseSyncRunRequest,
+    ): ResponseEntity<CourseSyncRunAcceptedResponse> {
+        val startedAt = LocalDateTime.now()
+        service.runCartSnapshotOnce(request.year, request.semester)
+        return ResponseEntity.ok().body(
+            CourseSyncRunAcceptedResponse(
+                accepted = true,
+                startedAt = startedAt,
+            ),
+        )
+    }
 }

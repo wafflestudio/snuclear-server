@@ -26,6 +26,16 @@ class CourseExcelParser {
         year: Int,
         semester: Semester,
         onCourse: (Course) -> Unit,
+    ): Int =
+        parseWithCartCounts(file, year, semester) { parsed ->
+            onCourse(parsed.course)
+        }
+
+    fun parseWithCartCounts(
+        file: MultipartFile,
+        year: Int,
+        semester: Semester,
+        onCourse: (ParsedCourseRow) -> Unit,
     ): Int {
         if (file.isEmpty) throw BadRequestException("빈 파일입니다.")
 
@@ -54,7 +64,7 @@ class CourseExcelParser {
                     if (headerIndex == null) continue
                     if (isRowEmpty(row)) continue
 
-                    val course =
+                    val parsed =
                         parseRow(
                             row = row,
                             headerIndex = headerIndex!!,
@@ -63,7 +73,7 @@ class CourseExcelParser {
                             rowNumForLog = rowNum + 1,
                         ) ?: continue
 
-                    onCourse(course)
+                    onCourse(parsed)
                     count++
                 }
             }
@@ -78,7 +88,7 @@ class CourseExcelParser {
         year: Int,
         semester: Semester,
         rowNumForLog: Int,
-    ): Course? {
+    ): ParsedCourseRow? {
         val courseNumber = stringCell(row, headerIndex, "교과목번호")
         val lectureNumber = stringCell(row, headerIndex, "강좌번호")
         val courseTitle = stringCell(row, headerIndex, "교과목명")
@@ -119,23 +129,28 @@ class CourseExcelParser {
                 objectMapper.writeValueAsString(PlaceAndTimePayload(place = place, time = time))
             }
 
-        return Course(
-            year = year,
-            semester = semester,
-            classification = classification,
-            college = college,
-            department = department,
-            academicCourse = academicCourse,
-            academicYear = academicYear,
-            courseNumber = courseNumber.trim(),
-            lectureNumber = lectureNumber.trim(),
-            courseTitle = courseTitle.trim(),
-            credit = credit,
-            instructor = instructor,
-            placeAndTime = placeAndTime,
-            quota = quota,
-            freshmanQuota = freshmanQuota,
-            registrationCount = registrationCount,
+        return ParsedCourseRow(
+            course =
+                Course(
+                    year = year,
+                    semester = semester,
+                    classification = classification,
+                    college = college,
+                    department = department,
+                    academicCourse = academicCourse,
+                    academicYear = academicYear,
+                    courseNumber = courseNumber.trim(),
+                    lectureNumber = lectureNumber.trim(),
+                    courseTitle = courseTitle.trim(),
+                    credit = credit,
+                    instructor = instructor,
+                    placeAndTime = placeAndTime,
+                    quota = quota,
+                    freshmanQuota = freshmanQuota,
+                    registrationCount = registrationCount,
+                ),
+            regularCartCount = intCell(row, headerIndex, "재학생장바구니"),
+            freshmanCartCount = intCell(row, headerIndex, "신입생장바구니신청"),
         )
     }
 
@@ -223,4 +238,10 @@ class CourseExcelParser {
 data class PlaceAndTimePayload(
     val place: String?,
     val time: String?,
+)
+
+data class ParsedCourseRow(
+    val course: Course,
+    val regularCartCount: Int?,
+    val freshmanCartCount: Int?,
 )
