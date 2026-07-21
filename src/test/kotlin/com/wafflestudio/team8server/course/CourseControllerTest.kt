@@ -554,3 +554,127 @@ class CourseControllerTest
                 .andExpect(jsonPath("$.items[0].courseTitle").value("자료 구조"))
         }
     }
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ActiveProfiles("test")
+@Import(TestcontainersConfiguration::class)
+class CourseSearchNormalizationControllerTest
+    @Autowired
+    constructor(
+        private val webApplicationContext: WebApplicationContext,
+        private val courseRepository: CourseRepository,
+    ) {
+        private lateinit var mockMvc: MockMvc
+
+        @BeforeEach
+        fun setUp() {
+            mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build()
+            courseRepository.deleteAll()
+        }
+
+        @Test
+        @DisplayName("query without spaces matches course title with spaces")
+        fun `search courses without spaces in query matches title with spaces`() {
+            courseRepository.save(CourseSearchTestData.dataStructuresWithSpace())
+
+            mockMvc
+                .perform(
+                    get("/api/courses/search")
+                        .queryParam("query", "\uC790\uB8CC\uAD6C\uC870"),
+                ).andDo(print())
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseTitle").value("\uC790\uB8CC \uAD6C\uC870"))
+        }
+
+        @Test
+        @DisplayName("query with spaces matches course title without spaces")
+        fun `search courses with spaces in query matches title without spaces`() {
+            courseRepository.save(CourseSearchTestData.dataStructuresWithoutSpace())
+
+            mockMvc
+                .perform(
+                    get("/api/courses/search")
+                        .queryParam("query", "\uC790\uB8CC \uAD6C\uC870"),
+                ).andDo(print())
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseTitle").value("\uC790\uB8CC\uAD6C\uC870"))
+        }
+
+        @Test
+        @DisplayName("compact shorthand query matches expanded course title")
+        fun `search courses with compact shorthand query matches expanded title`() {
+            courseRepository.save(CourseSearchTestData.physics2())
+
+            mockMvc
+                .perform(
+                    get("/api/courses/search")
+                        .queryParam("query", "\uBB3C2"),
+                ).andDo(print())
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].courseTitle").value("\uBB3C\uB9AC\uD5592"))
+        }
+
+        @Test
+        @DisplayName("semantic major query matches major classifications")
+        fun `search courses with major semantic query matches major classifications`() {
+            courseRepository.save(CourseSearchTestData.majorCourse())
+
+            mockMvc
+                .perform(
+                    get("/api/courses/search")
+                        .queryParam("query", "\uC804\uACF5"),
+                ).andDo(print())
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].classification").value("\uC804\uC120"))
+        }
+
+        @Test
+        @DisplayName("semantic graduate query matches graduate academic courses")
+        fun `search courses with graduate semantic query matches graduate academic courses`() {
+            courseRepository.save(CourseSearchTestData.graduateCourse())
+
+            mockMvc
+                .perform(
+                    get("/api/courses/search")
+                        .queryParam("query", "\uB300\uD559\uC6D0"),
+                ).andDo(print())
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].academicCourse").value("\uC11D\uC0AC"))
+        }
+
+        @Test
+        @DisplayName("department shorthand query matches expanded department")
+        fun `search courses with department shorthand query matches expanded department`() {
+            courseRepository.save(CourseSearchTestData.computerScienceDepartmentCourse())
+
+            mockMvc
+                .perform(
+                    get("/api/courses/search")
+                        .queryParam("query", "\uCEF4\uACF5\uACFC"),
+                ).andDo(print())
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].department").value("\uCEF4\uD4E8\uD130\uACF5\uD559\uBD80"))
+        }
+
+        @Test
+        @DisplayName("blank query keeps exact department filter behavior")
+        fun `search courses with blank query and department filter keeps exact filter behavior`() {
+            courseRepository.saveAll(CourseSearchTestData.departmentFilterTargets())
+
+            mockMvc
+                .perform(
+                    get("/api/courses/search")
+                        .queryParam("query", "   ")
+                        .queryParam("department", "computer-science"),
+                ).andDo(print())
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].department").value("computer-science"))
+        }
+    }
