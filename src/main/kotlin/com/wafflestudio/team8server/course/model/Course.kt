@@ -38,10 +38,14 @@ class Course(
     val lectureNumber: String,
     @Column(name = "course_title", nullable = false)
     val courseTitle: String,
+    @Column(name = "course_title_normalized", insertable = false, updatable = false)
+    val courseTitleNormalized: String? = null,
     @Column(name = "credit")
     val credit: Int? = null,
     @Column(name = "instructor", length = 100)
     val instructor: String? = null,
+    @Column(name = "instructor_normalized", insertable = false, updatable = false)
+    val instructorNormalized: String? = null,
     @Column(name = "place_and_time", columnDefinition = "JSON")
     val placeAndTime: String? = null,
     @Column(name = "quota", nullable = false)
@@ -71,8 +75,10 @@ fun Course.withId(id: Long): Course =
         courseNumber = courseNumber,
         lectureNumber = lectureNumber,
         courseTitle = courseTitle,
+        courseTitleNormalized = courseTitleNormalized,
         credit = credit,
         instructor = instructor,
+        instructorNormalized = instructorNormalized,
         placeAndTime = placeAndTime,
         quota = quota,
         freshmanQuota = freshmanQuota,
