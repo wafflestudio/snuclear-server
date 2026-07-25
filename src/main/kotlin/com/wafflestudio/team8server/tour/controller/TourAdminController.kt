@@ -1,4 +1,4 @@
-package com.wafflestudio.team8server.tour.contoller
+package com.wafflestudio.team8server.tour.controller
 
 import com.wafflestudio.team8server.common.auth.LoggedInUserId
 import com.wafflestudio.team8server.tour.dto.TourPublishResponse
