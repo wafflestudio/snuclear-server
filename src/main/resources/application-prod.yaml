@@ -43,4 +43,4 @@ course-sync:
     readTimeoutMillis: 30000
   defaultTarget:
     year: 2026
-    semester: SUMMER
+    semester: FALL
