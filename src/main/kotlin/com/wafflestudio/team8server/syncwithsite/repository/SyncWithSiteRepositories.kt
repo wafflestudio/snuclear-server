@@ -13,6 +13,8 @@ interface SyncWithSiteRunRepository : JpaRepository<SyncWithSiteRun, Long> {
     fun findTopByOrderByStartedAtDesc(): SyncWithSiteRun?
 
     fun findFirstByStatusOrderByStartedAtDesc(status: SyncWithSiteRunStatus): SyncWithSiteRun?
+
+    fun findAllByStatusOrderByStartedAtAsc(status: SyncWithSiteRunStatus): List<SyncWithSiteRun>
 }
 
 interface SugangPeriodSnapshotRepository : JpaRepository<SugangPeriodSnapshot, Long> {

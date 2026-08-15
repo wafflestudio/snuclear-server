@@ -168,7 +168,7 @@ class SyncWithSiteService(
                     message = null,
                 ),
             )
-            saveSugangPeriodSnapshot(result, dumpedJson)
+            saveSugangPeriodSnapshot(result)
             log.info("SyncWithSite sync success")
         } catch (e: Exception) {
             // Save Error logs to the DB
@@ -203,18 +203,25 @@ class SyncWithSiteService(
         return crawlSugangPeriod()
     }
 
-    private fun saveSugangPeriodSnapshot(
-        crawled: SugangPeriodResponse,
-        crawledData: String,
-    ) {
+    private fun saveSugangPeriodSnapshot(crawled: SugangPeriodResponse) {
         val target = SugangPeriodParser.parse(crawled) ?: return
         val snapshot = snapshotRepository.findByYearAndSemester(target.year, target.semester)
         if (snapshot == null) {
+            val saved =
+                runRepository
+                    .findAllByStatusOrderByStartedAtAsc(SyncWithSiteRunStatus.SUCCESS)
+                    .mapNotNull { it.dumpedData }
+                    .map { objectMapper.readValue(it, SugangPeriodResponse::class.java) }
+                    .filter {
+                        SugangPeriodParser.parse(it)?.let { parsed ->
+                            parsed.year == target.year && parsed.semester == target.semester
+                        } == true
+                    }.reduce(SugangPeriodSnapshotMerger::merge)
             snapshotRepository.save(
                 SugangPeriodSnapshot(
                     year = target.year,
                     semester = target.semester,
-                    dumpedData = crawledData,
+                    dumpedData = objectMapper.writeValueAsString(saved),
                     updatedAt = LocalDateTime.now(),
                 ),
             )
