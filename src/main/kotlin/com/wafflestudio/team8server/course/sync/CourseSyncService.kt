@@ -1,7 +1,9 @@
 package com.wafflestudio.team8server.course.sync
 
 import com.wafflestudio.team8server.common.exception.CourseSyncAlreadyRunningException
+import com.wafflestudio.team8server.course.model.CourseCartSnapshotRun
 import com.wafflestudio.team8server.course.model.Semester
+import com.wafflestudio.team8server.course.repository.CourseCartSnapshotRunRepository
 import com.wafflestudio.team8server.course.service.CourseCartSnapshotService
 import com.wafflestudio.team8server.course.service.CourseService
 import com.wafflestudio.team8server.course.sync.model.CourseSyncRun
@@ -9,6 +11,9 @@ import com.wafflestudio.team8server.course.sync.model.CourseSyncRunStatus
 import com.wafflestudio.team8server.course.sync.model.CourseSyncSetting
 import com.wafflestudio.team8server.course.sync.repository.CourseSyncRunRepository
 import com.wafflestudio.team8server.course.sync.repository.CourseSyncSettingRepository
+import com.wafflestudio.team8server.syncwithsite.service.ParsedSugangPeriod
+import com.wafflestudio.team8server.syncwithsite.service.SugangPeriodParser
+import com.wafflestudio.team8server.syncwithsite.service.SyncWithSiteService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -20,9 +25,11 @@ class CourseSyncService(
     private val props: CourseSyncProperties,
     private val courseService: CourseService,
     private val courseCartSnapshotService: CourseCartSnapshotService,
+    private val courseCartSnapshotRunRepository: CourseCartSnapshotRunRepository,
     private val excelClient: SugangCourseExcelClient,
     private val settingRepository: CourseSyncSettingRepository,
     private val runRepository: CourseSyncRunRepository,
+    private val syncWithSiteService: SyncWithSiteService,
 ) {
     private val log = LoggerFactory.getLogger(CourseSyncService::class.java)
     private val running = AtomicBoolean(false)
@@ -50,12 +57,8 @@ class CourseSyncService(
 
     fun isEnabled(): Boolean = getSetting().enabled
 
-    fun defaultTarget(): Pair<Int, Semester>? {
-        val y = props.defaultTarget.year
-        val s = props.defaultTarget.semester
-        if (y == null || s == null) return null
-        return y to s
-    }
+    fun automaticTarget(): ParsedSugangPeriod? =
+        syncWithSiteService.getLastSugangPeriod()?.let(SugangPeriodParser::parse)
 
     fun runOnce(
         year: Int,
@@ -140,6 +143,32 @@ class CourseSyncService(
         } finally {
             running.set(false)
         }
+    }
+
+    fun captureCartSnapshotIfDue(
+        target: ParsedSugangPeriod,
+        now: LocalDateTime = LocalDateTime.now(),
+    ): Int? {
+        val firstCourseChangeAt = target.firstCourseChangeAt ?: return null
+        if (now.isBefore(firstCourseChangeAt)) return null
+        if (
+            courseCartSnapshotRunRepository.existsByYearAndSemester(
+                target.year,
+                target.semester,
+            )
+        ) {
+            return null
+        }
+
+        val captured = runCartSnapshotOnce(target.year, target.semester)
+        courseCartSnapshotRunRepository.save(
+            CourseCartSnapshotRun(
+                year = target.year,
+                semester = target.semester,
+                capturedAt = now,
+            ),
+        )
+        return captured
     }
 
     private fun CourseSyncSetting.copyFrom(prev: CourseSyncSetting): CourseSyncSetting =

@@ -14,13 +14,15 @@ class CourseSyncScheduler(
     fun tick() {
         if (!service.isEnabled()) return
 
-        val target = service.defaultTarget()
+        val target = service.automaticTarget()
         if (target == null) {
-            log.warn("Auto course sync is enabled but courseSync.defaultTarget is not configured. Skipping.")
+            log.warn("Auto course sync is enabled but no parsable saved sugang period exists. Skipping.")
             return
         }
 
-        val (year, semester) = target
-        service.runOnce(year, semester)
+        service.runOnce(target.year, target.semester)
+        service.captureCartSnapshotIfDue(target)?.let { captured ->
+            log.info("Automatic course cart snapshot success (rows={})", captured)
+        }
     }
 }

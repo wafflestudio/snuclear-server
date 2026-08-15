@@ -123,6 +123,12 @@ class SyncWithSiteService(
 
     fun getLastRun(): SyncWithSiteRun? = runRepository.findTopByOrderByStartedAtDesc()
 
+    fun getLastSugangPeriod(): SugangPeriodResponse? =
+        runRepository
+            .findFirstByStatusOrderByStartedAtDesc(SyncWithSiteRunStatus.SUCCESS)
+            ?.dumpedData
+            ?.let { objectMapper.readValue(it, SugangPeriodResponse::class.java) }
+
     fun isEnabled(): Boolean = getSetting().enabled
 
     fun runOnce() {
@@ -173,11 +179,10 @@ class SyncWithSiteService(
 
     fun getSugangPeriod(): SugangPeriodResponse {
         val lastSuccessRun = runRepository.findFirstByStatusOrderByStartedAtDesc(SyncWithSiteRunStatus.SUCCESS)
-
-        if (lastSuccessRun != null && lastSuccessRun.dumpedData != null) {
-            log.info("Returning sugang period from DB dump (runId: {})", lastSuccessRun.id)
-            // Unfold serialized json data to return
-            return objectMapper.readValue(lastSuccessRun.dumpedData, SugangPeriodResponse::class.java)
+        val period = getLastSugangPeriod()
+        if (period != null) {
+            log.info("Returning sugang period from DB dump (runId: {})", lastSuccessRun?.id)
+            return period
         }
 
         // Fallback logic

@@ -67,7 +67,7 @@
 | | `POST /api/auth/logout` | 로그아웃 |
 | 강의 | `GET /api/courses/search` | 강의 검색 |
 | | `POST /api/courses/import` | 강의 데이터 임포트 (Admin) |
-| 강의 동기화 | `POST /api/courses/course-sync/auto/enable` | 자동 동기화 활성화 (Admin) |
+| 강의 동기화 | `POST /api/courses/course-sync/auto/enable` | 저장된 수강신청 일정의 학기를 기준으로 자동 동기화 활성화 (Admin) |
 | | `POST /api/courses/course-sync/auto/disable` | 자동 동기화 비활성화 (Admin) |
 | | `GET /api/courses/course-sync/auto` | 자동 동기화 상태 조회 (Admin) |
 | | `POST /api/courses/course-sync/run` | 즉시 동기화 실행 (Admin) |
