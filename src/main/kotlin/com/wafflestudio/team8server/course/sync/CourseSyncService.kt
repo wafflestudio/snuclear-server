@@ -57,8 +57,7 @@ class CourseSyncService(
 
     fun isEnabled(): Boolean = getSetting().enabled
 
-    fun automaticTarget(): ParsedSugangPeriod? =
-        syncWithSiteService.getSavedSugangPeriod()?.let(SugangPeriodParser::parse)
+    fun automaticTarget(): ParsedSugangPeriod? = syncWithSiteService.getSavedSugangPeriod()?.let(SugangPeriodParser::parse)
 
     fun runOnce(
         year: Int,

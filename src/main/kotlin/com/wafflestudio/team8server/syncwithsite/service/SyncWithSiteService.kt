@@ -2,13 +2,13 @@ package com.wafflestudio.team8server.syncwithsite.service
 import com.wafflestudio.team8server.common.exception.ResourceNotFoundException
 import com.wafflestudio.team8server.syncwithsite.dto.SugangPeriodDto
 import com.wafflestudio.team8server.syncwithsite.dto.SugangPeriodResponse
+import com.wafflestudio.team8server.syncwithsite.model.SugangPeriodSnapshot
 import com.wafflestudio.team8server.syncwithsite.model.SyncWithSiteRun
 import com.wafflestudio.team8server.syncwithsite.model.SyncWithSiteRunStatus
 import com.wafflestudio.team8server.syncwithsite.model.SyncWithSiteSetting
-import com.wafflestudio.team8server.syncwithsite.model.SugangPeriodSnapshot
+import com.wafflestudio.team8server.syncwithsite.repository.SugangPeriodSnapshotRepository
 import com.wafflestudio.team8server.syncwithsite.repository.SyncWithSiteRunRepository
 import com.wafflestudio.team8server.syncwithsite.repository.SyncWithSiteSettingRepository
-import com.wafflestudio.team8server.syncwithsite.repository.SugangPeriodSnapshotRepository
 import org.jsoup.Jsoup
 import org.jsoup.nodes.TextNode
 import org.jsoup.select.Elements
