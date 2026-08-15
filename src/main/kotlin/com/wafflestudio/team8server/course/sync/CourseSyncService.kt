@@ -59,6 +59,17 @@ class CourseSyncService(
 
     fun automaticTarget(): ParsedSugangPeriod? = syncWithSiteService.getSavedSugangPeriod()?.let(SugangPeriodParser::parse)
 
+    fun shouldRunAutomatically(
+        target: ParsedSugangPeriod,
+        now: LocalDateTime = LocalDateTime.now(),
+    ): Boolean =
+        target.isCourseSyncActiveAt(now) ||
+            !runRepository.existsByStatusAndYearAndSemester(
+                CourseSyncRunStatus.SUCCESS,
+                target.year,
+                target.semester,
+            )
+
     fun runOnce(
         year: Int,
         semester: Semester,
