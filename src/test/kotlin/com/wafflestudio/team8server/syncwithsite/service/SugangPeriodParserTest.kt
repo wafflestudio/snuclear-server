@@ -17,8 +17,14 @@ class SugangPeriodParserTest {
                     body =
                         listOf(
                             SugangPeriodDto(
+                                "장바구니",
+                                "2026-08-01(토) ~ 2026-08-02(일)",
+                                "09 : 00 ~ 23 : 59",
+                                "전체 학생",
+                            ),
+                            SugangPeriodDto(
                                 "수강신청변경",
-                                "2026-09-02(수) ~ 2026-09-02(수)",
+                                "2026-09-02(수) ~ 2026-09-07(월)",
                                 "09 : 00 ~ 18 : 30",
                                 "전체 학생",
                             ),
@@ -32,9 +38,13 @@ class SugangPeriodParserTest {
                 ),
             )
 
-        assertThat(parsed).isEqualTo(
-            ParsedSugangPeriod(2026, Semester.FALL, LocalDateTime.of(2026, 8, 28, 9, 0)),
-        )
+        assertThat(parsed?.year).isEqualTo(2026)
+        assertThat(parsed?.semester).isEqualTo(Semester.FALL)
+        assertThat(parsed?.firstScheduleAt).isEqualTo(LocalDateTime.of(2026, 8, 1, 9, 0))
+        assertThat(parsed?.firstCourseChangeAt).isEqualTo(LocalDateTime.of(2026, 8, 28, 9, 0))
+        assertThat(parsed?.lastCourseChangeAt).isEqualTo(LocalDateTime.of(2026, 9, 7, 18, 30))
+        assertThat(parsed?.isCourseSyncActiveAt(LocalDateTime.of(2026, 8, 15, 0, 0))).isTrue()
+        assertThat(parsed?.isCourseSyncActiveAt(LocalDateTime.of(2026, 9, 8, 0, 0))).isFalse()
     }
 
     @Test
