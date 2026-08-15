@@ -4,10 +4,10 @@ import com.wafflestudio.team8server.course.model.Semester
 import com.wafflestudio.team8server.syncwithsite.service.ParsedSugangPeriod
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.RETURNS_DEFAULTS
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.mockingDetails
 import org.mockito.Mockito.never
-import org.mockito.Mockito.RETURNS_DEFAULTS
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 

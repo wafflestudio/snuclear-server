@@ -1,9 +1,12 @@
 package com.wafflestudio.team8server.course.sync
 
+import com.wafflestudio.team8server.config.EnrollmentPeriodProperties
+import com.wafflestudio.team8server.course.dto.CourseSearchRequest
+import com.wafflestudio.team8server.course.model.Course
 import com.wafflestudio.team8server.course.model.CourseCartSnapshotRun
 import com.wafflestudio.team8server.course.model.Semester
-import com.wafflestudio.team8server.course.repository.CourseCartSnapshotRunRepository
 import com.wafflestudio.team8server.course.repository.CourseCartSnapshotRepository
+import com.wafflestudio.team8server.course.repository.CourseCartSnapshotRunRepository
 import com.wafflestudio.team8server.course.repository.CourseRepository
 import com.wafflestudio.team8server.course.service.CourseCartSnapshotService
 import com.wafflestudio.team8server.course.service.CourseExcelParser
@@ -11,16 +14,26 @@ import com.wafflestudio.team8server.course.service.CourseService
 import com.wafflestudio.team8server.course.sync.model.CourseSyncRunStatus
 import com.wafflestudio.team8server.course.sync.repository.CourseSyncRunRepository
 import com.wafflestudio.team8server.course.sync.repository.CourseSyncSettingRepository
+import com.wafflestudio.team8server.syncwithsite.dto.SugangPeriodResponse
 import com.wafflestudio.team8server.syncwithsite.service.ParsedSugangPeriod
 import com.wafflestudio.team8server.syncwithsite.service.SyncWithSiteService
+import jakarta.persistence.EntityManager
+import jakarta.persistence.criteria.CriteriaBuilder
+import jakarta.persistence.criteria.CriteriaQuery
+import jakarta.persistence.criteria.Predicate
+import jakarta.persistence.criteria.Root
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockingDetails
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.domain.Specification
 import org.springframework.web.multipart.MultipartFile
 import java.time.LocalDateTime
 
@@ -118,8 +131,12 @@ class CourseSyncServiceTest {
                 LocalDateTime.of(2026, 8, 28, 9, 0),
             )
         }.isInstanceOf(IllegalStateException::class.java)
-        assertThat(org.mockito.Mockito.mockingDetails(cartSnapshotRunRepository).invocations.map { it.method.name })
-            .doesNotContain("save")
+        assertThat(
+            org.mockito.Mockito
+                .mockingDetails(cartSnapshotRunRepository)
+                .invocations
+                .map { it.method.name },
+        ).doesNotContain("save")
     }
 
     private fun target() =
@@ -130,4 +147,89 @@ class CourseSyncServiceTest {
             firstCourseChangeAt = LocalDateTime.of(2026, 8, 28, 9, 0),
             lastCourseChangeAt = LocalDateTime.of(2026, 9, 7, 23, 59),
         )
+}
+
+class CourseServiceSearchTargetTest {
+    private val defaultAnswer = org.mockito.Mockito.RETURNS_DEFAULTS
+
+    @Test
+    fun `search prefers the saved schedule term`() {
+        assertThat(
+            searchFilterValues(
+                period = period("2026학년도 2학기 수강신청 기간안내"),
+                defaultTarget = CourseSyncProperties.DefaultTarget(2025, Semester.SPRING),
+            ),
+        ).contains(2026, Semester.FALL)
+    }
+
+    @Test
+    fun `search falls back to the configured term without a saved schedule`() {
+        assertThat(
+            searchFilterValues(
+                period = null,
+                defaultTarget = CourseSyncProperties.DefaultTarget(2025, Semester.SPRING),
+            ),
+        ).contains(2025, Semester.SPRING)
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun searchFilterValues(
+        period: SugangPeriodResponse?,
+        defaultTarget: CourseSyncProperties.DefaultTarget,
+    ): List<Any?> {
+        val repository =
+            mock(CourseRepository::class.java) { invocation ->
+                if (
+                    invocation.method.name == "findAll" &&
+                    invocation.arguments.size == 2 &&
+                    invocation.arguments[1] is Pageable
+                ) {
+                    Page.empty<Course>(invocation.arguments[1] as Pageable)
+                } else {
+                    defaultAnswer.answer(invocation)
+                }
+            }
+        val syncWithSiteService =
+            mock(SyncWithSiteService::class.java) { invocation ->
+                if (invocation.method.name == "getSavedSugangPeriod") {
+                    period
+                } else {
+                    defaultAnswer.answer(invocation)
+                }
+            }
+        val courseService =
+            CourseService(
+                repository,
+                mock(CourseExcelParser::class.java),
+                mock(EntityManager::class.java),
+                500,
+                EnrollmentPeriodProperties(),
+                CourseSyncProperties(defaultTarget = defaultTarget),
+                syncWithSiteService,
+            )
+
+        courseService.search(CourseSearchRequest())
+
+        val specification =
+            mockingDetails(repository)
+                .invocations
+                .single { it.method.name == "findAll" && it.arguments.size == 2 }
+                .arguments[0] as Specification<Course>
+        val root = mock(Root::class.java) as Root<Course>
+        val query = mock(CriteriaQuery::class.java) as CriteriaQuery<*>
+        val criteriaBuilder =
+            mock(CriteriaBuilder::class.java) { invocation ->
+                when (invocation.method.name) {
+                    "equal", "and" -> mock(Predicate::class.java)
+                    else -> defaultAnswer.answer(invocation)
+                }
+            }
+        specification.toPredicate(root, query, criteriaBuilder)
+        return mockingDetails(criteriaBuilder)
+            .invocations
+            .filter { it.method.name == "equal" }
+            .map { it.arguments[1] }
+    }
+
+    private fun period(header: String) = SugangPeriodResponse(header, emptyList())
 }
