@@ -14,6 +14,7 @@ import com.wafflestudio.team8server.course.sync.repository.CourseSyncSettingRepo
 import com.wafflestudio.team8server.syncwithsite.service.ParsedSugangPeriod
 import com.wafflestudio.team8server.syncwithsite.service.SyncWithSiteService
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito.mock
@@ -92,6 +93,33 @@ class CourseSyncServiceTest {
 
         assertThat(service.captureCartSnapshotIfDue(target(), LocalDateTime.of(2026, 8, 28, 9, 0))).isNull()
         verify(excelClient, never()).downloadExcel(2026, Semester.FALL)
+    }
+
+    @Test
+    fun `failed cart snapshot does not record the term as captured`() {
+        val failingSnapshotService =
+            object : CourseCartSnapshotService(
+                mock(CourseRepository::class.java),
+                mock(CourseCartSnapshotRepository::class.java),
+                mock(CourseExcelParser::class.java),
+            ) {
+                override fun capture(
+                    year: Int,
+                    semester: Semester,
+                    file: MultipartFile,
+                ): Int = throw IllegalStateException("capture failed")
+            }
+        `when`(cartSnapshotRunRepository.existsByYearAndSemester(2026, Semester.FALL)).thenReturn(false)
+        `when`(excelClient.downloadExcel(2026, Semester.FALL)).thenReturn(byteArrayOf(1))
+
+        assertThatThrownBy {
+            createService(failingSnapshotService).captureCartSnapshotIfDue(
+                target(),
+                LocalDateTime.of(2026, 8, 28, 9, 0),
+            )
+        }.isInstanceOf(IllegalStateException::class.java)
+        assertThat(org.mockito.Mockito.mockingDetails(cartSnapshotRunRepository).invocations.map { it.method.name })
+            .doesNotContain("save")
     }
 
     private fun target() =

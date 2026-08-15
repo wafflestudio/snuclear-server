@@ -13,6 +13,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockingDetails
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import tools.jackson.databind.ObjectMapper
@@ -79,6 +80,24 @@ class SyncWithSiteServiceTest {
         verify(snapshotRepository).save(snapshot)
         val saved = objectMapper.readValue(snapshot.dumpedData, SugangPeriodResponse::class.java)
         assertThat(saved.body.map { it.category }).containsExactly("장바구니", "최초신청", "수강신청변경(정정)")
+    }
+
+    @Test
+    fun `unchanged suffix does not rewrite the canonical snapshot`() {
+        val canonical = period("장바구니", "최초신청", "수강신청변경")
+        val snapshot =
+            SugangPeriodSnapshot(
+                year = 2026,
+                semester = Semester.FALL,
+                dumpedData = objectMapper.writeValueAsString(canonical),
+                updatedAt = LocalDateTime.now(),
+            )
+        `when`(snapshotRepository.findByYearAndSemester(2026, Semester.FALL)).thenReturn(snapshot)
+
+        service(period("최초신청", "수강신청변경")).runOnce()
+
+        assertThat(mockingDetails(snapshotRepository).invocations.map { it.method.name })
+            .doesNotContain("save")
     }
 
     private fun service(crawled: SugangPeriodResponse? = null): SyncWithSiteService =

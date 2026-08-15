@@ -58,4 +58,20 @@ class SugangPeriodParserTest {
         assertThat(summer?.semester).isEqualTo(Semester.SUMMER)
         assertThat(unknown).isNull()
     }
+
+    @Test
+    fun `keeps the term when schedule rows have no parsable range`() {
+        val parsed =
+            SugangPeriodParser.parse(
+                SugangPeriodResponse(
+                    "2026학년도 겨울학기 수강신청 기간안내",
+                    listOf(SugangPeriodDto("수강신청변경", "미정", "미정", "전체 학생")),
+                ),
+            )
+
+        assertThat(parsed?.semester).isEqualTo(Semester.WINTER)
+        assertThat(parsed?.firstScheduleAt).isNull()
+        assertThat(parsed?.firstCourseChangeAt).isNull()
+        assertThat(parsed?.lastCourseChangeAt).isNull()
+    }
 }

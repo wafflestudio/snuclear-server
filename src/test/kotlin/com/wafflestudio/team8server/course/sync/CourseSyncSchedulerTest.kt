@@ -16,6 +16,15 @@ class CourseSyncSchedulerTest {
     private val scheduler = CourseSyncScheduler(service)
 
     @Test
+    fun `tick stops while automatic sync is disabled`() {
+        `when`(service.isEnabled()).thenReturn(false)
+
+        scheduler.tick()
+
+        verify(service, never()).automaticTarget()
+    }
+
+    @Test
     fun `tick skips when the saved schedule cannot provide a target`() {
         `when`(service.isEnabled()).thenReturn(true)
         `when`(service.automaticTarget()).thenReturn(null)
@@ -42,5 +51,23 @@ class CourseSyncSchedulerTest {
         verify(activeService).runOnce(2026, Semester.FALL)
         assertThat(mockingDetails(activeService).invocations.map { it.method.name })
             .contains("captureCartSnapshotIfDue")
+    }
+
+    @Test
+    fun `tick skips sync when the target is outside automatic conditions`() {
+        val target = ParsedSugangPeriod(2026, Semester.FALL, null, null, null)
+        val inactiveService =
+            mock(CourseSyncService::class.java) { invocation ->
+                when (invocation.method.name) {
+                    "isEnabled" -> true
+                    "automaticTarget" -> target
+                    "shouldRunAutomatically" -> false
+                    else -> RETURNS_DEFAULTS.answer(invocation)
+                }
+            }
+
+        CourseSyncScheduler(inactiveService).tick()
+
+        verify(inactiveService, never()).runOnce(2026, Semester.FALL)
     }
 }
