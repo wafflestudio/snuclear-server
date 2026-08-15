@@ -46,7 +46,7 @@ class CourseService(
             )
 
         val scheduleTarget =
-            syncWithSiteService.getLastSugangPeriod()?.let(SugangPeriodParser::parse)
+            syncWithSiteService.getSavedSugangPeriod()?.let(SugangPeriodParser::parse)
         val defaultTarget = courseSyncProperties.defaultTarget
 
         val specification =

@@ -5,8 +5,10 @@ import com.wafflestudio.team8server.syncwithsite.dto.SugangPeriodResponse
 import com.wafflestudio.team8server.syncwithsite.model.SyncWithSiteRun
 import com.wafflestudio.team8server.syncwithsite.model.SyncWithSiteRunStatus
 import com.wafflestudio.team8server.syncwithsite.model.SyncWithSiteSetting
+import com.wafflestudio.team8server.syncwithsite.model.SugangPeriodSnapshot
 import com.wafflestudio.team8server.syncwithsite.repository.SyncWithSiteRunRepository
 import com.wafflestudio.team8server.syncwithsite.repository.SyncWithSiteSettingRepository
+import com.wafflestudio.team8server.syncwithsite.repository.SugangPeriodSnapshotRepository
 import org.jsoup.Jsoup
 import org.jsoup.nodes.TextNode
 import org.jsoup.select.Elements
@@ -21,6 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class SyncWithSiteService(
     private val settingRepository: SyncWithSiteSettingRepository,
     private val runRepository: SyncWithSiteRunRepository,
+    private val snapshotRepository: SugangPeriodSnapshotRepository,
     private val objectMapper: ObjectMapper,
 ) {
     private val log = LoggerFactory.getLogger(SyncWithSiteService::class.java)
@@ -129,6 +132,15 @@ class SyncWithSiteService(
             ?.dumpedData
             ?.let { objectMapper.readValue(it, SugangPeriodResponse::class.java) }
 
+    fun getSavedSugangPeriod(): SugangPeriodResponse? {
+        val latest = getLastSugangPeriod() ?: return null
+        val target = SugangPeriodParser.parse(latest) ?: return latest
+        return snapshotRepository
+            .findByYearAndSemester(target.year, target.semester)
+            ?.let { objectMapper.readValue(it.dumpedData, SugangPeriodResponse::class.java) }
+            ?: latest
+    }
+
     fun isEnabled(): Boolean = getSetting().enabled
 
     fun runOnce() {
@@ -156,6 +168,7 @@ class SyncWithSiteService(
                     message = null,
                 ),
             )
+            saveSugangPeriodSnapshot(result, dumpedJson)
             log.info("SyncWithSite sync success")
         } catch (e: Exception) {
             // Save Error logs to the DB
@@ -179,7 +192,7 @@ class SyncWithSiteService(
 
     fun getSugangPeriod(): SugangPeriodResponse {
         val lastSuccessRun = runRepository.findFirstByStatusOrderByStartedAtDesc(SyncWithSiteRunStatus.SUCCESS)
-        val period = getLastSugangPeriod()
+        val period = getSavedSugangPeriod()
         if (period != null) {
             log.info("Returning sugang period from DB dump (runId: {})", lastSuccessRun?.id)
             return period
@@ -188,5 +201,32 @@ class SyncWithSiteService(
         // Fallback logic
         log.info("No dumped data found in DB. Falling back to real-time crawling.")
         return crawlSugangPeriod()
+    }
+
+    private fun saveSugangPeriodSnapshot(
+        crawled: SugangPeriodResponse,
+        crawledData: String,
+    ) {
+        val target = SugangPeriodParser.parse(crawled) ?: return
+        val snapshot = snapshotRepository.findByYearAndSemester(target.year, target.semester)
+        if (snapshot == null) {
+            snapshotRepository.save(
+                SugangPeriodSnapshot(
+                    year = target.year,
+                    semester = target.semester,
+                    dumpedData = crawledData,
+                    updatedAt = LocalDateTime.now(),
+                ),
+            )
+            return
+        }
+
+        val saved = objectMapper.readValue(snapshot.dumpedData, SugangPeriodResponse::class.java)
+        val merged = SugangPeriodSnapshotMerger.merge(saved, crawled)
+        if (merged == saved) return
+
+        snapshot.dumpedData = objectMapper.writeValueAsString(merged)
+        snapshot.updatedAt = LocalDateTime.now()
+        snapshotRepository.save(snapshot)
     }
 }
