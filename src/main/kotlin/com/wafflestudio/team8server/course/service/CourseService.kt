@@ -12,6 +12,8 @@ import com.wafflestudio.team8server.course.model.withId
 import com.wafflestudio.team8server.course.repository.CourseRepository
 import com.wafflestudio.team8server.course.repository.CourseSpecification
 import com.wafflestudio.team8server.course.sync.CourseSyncProperties
+import com.wafflestudio.team8server.syncwithsite.service.SugangPeriodParser
+import com.wafflestudio.team8server.syncwithsite.service.SyncWithSiteService
 import jakarta.persistence.EntityManager
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -31,6 +33,7 @@ class CourseService(
     private val courseImportBatchSize: Int,
     private val enrollmentPeriodProperties: EnrollmentPeriodProperties,
     private val courseSyncProperties: CourseSyncProperties,
+    private val syncWithSiteService: SyncWithSiteService,
 ) {
     private val log = LoggerFactory.getLogger(CourseExcelParser::class.java)
 
@@ -42,6 +45,8 @@ class CourseService(
                 Sort.by("courseTitle").ascending().and(Sort.by("id").ascending()),
             )
 
+        val scheduleTarget =
+            syncWithSiteService.getLastSugangPeriod()?.let(SugangPeriodParser::parse)
         val defaultTarget = courseSyncProperties.defaultTarget
 
         val specification =
@@ -53,8 +58,8 @@ class CourseService(
                 college = request.college,
                 department = request.department,
                 classification = request.classification,
-                year = defaultTarget.year,
-                semester = defaultTarget.semester,
+                year = scheduleTarget?.year ?: defaultTarget.year,
+                semester = scheduleTarget?.semester ?: defaultTarget.semester,
             )
 
         val page = courseRepository.findAll(specification, pageable)
