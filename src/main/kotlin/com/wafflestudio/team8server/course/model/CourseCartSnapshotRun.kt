@@ -18,9 +18,24 @@ class CourseCartSnapshotRun(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     val semester: Semester,
-    @Column(name = "captured_at", nullable = false)
-    val capturedAt: LocalDateTime,
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    var status: CourseCartSnapshotRunStatus,
+    @Column(name = "claim_token", nullable = false, length = 36)
+    var claimToken: String,
+    @Column(name = "claimed_at", nullable = false)
+    var claimedAt: LocalDateTime,
+    @Column(name = "captured_at")
+    var capturedAt: LocalDateTime? = null,
+    @Column(length = 500)
+    var message: String? = null,
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 )
+
+enum class CourseCartSnapshotRunStatus {
+    PENDING,
+    SUCCESS,
+    FAILED,
+}

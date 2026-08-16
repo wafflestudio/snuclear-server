@@ -3,7 +3,6 @@ package com.wafflestudio.team8server.course.sync
 import com.wafflestudio.team8server.config.EnrollmentPeriodProperties
 import com.wafflestudio.team8server.course.dto.CourseSearchRequest
 import com.wafflestudio.team8server.course.model.Course
-import com.wafflestudio.team8server.course.model.CourseCartSnapshotRun
 import com.wafflestudio.team8server.course.model.Semester
 import com.wafflestudio.team8server.course.repository.CourseCartSnapshotRepository
 import com.wafflestudio.team8server.course.repository.CourseCartSnapshotRunRepository
@@ -25,7 +24,7 @@ import jakarta.persistence.criteria.Root
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
-import org.mockito.ArgumentCaptor
+import org.mockito.Mockito.RETURNS_DEFAULTS
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.mockingDetails
 import org.mockito.Mockito.never
@@ -34,12 +33,26 @@ import org.mockito.Mockito.`when`
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.domain.Specification
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.TransactionStatus
+import org.springframework.transaction.support.SimpleTransactionStatus
 import org.springframework.web.multipart.MultipartFile
 import java.time.LocalDateTime
 
 class CourseSyncServiceTest {
     private val cartSnapshotService = mock(CourseCartSnapshotService::class.java)
-    private val cartSnapshotRunRepository = mock(CourseCartSnapshotRunRepository::class.java)
+    private var insertClaimResult = 1
+    private var reclaimClaimResult = 0
+    private val cartSnapshotRunRepository =
+        mock(CourseCartSnapshotRunRepository::class.java) { invocation ->
+            when (invocation.method.name) {
+                "insertPendingClaim" -> insertClaimResult
+                "reclaim" -> reclaimClaimResult
+                "complete", "fail" -> 1
+                else -> RETURNS_DEFAULTS.answer(invocation)
+            }
+        }
     private val excelClient = mock(SugangCourseExcelClient::class.java)
     private val runRepository = mock(CourseSyncRunRepository::class.java)
     private val service = createService(cartSnapshotService)
@@ -54,6 +67,7 @@ class CourseSyncServiceTest {
             settingRepository = mock(CourseSyncSettingRepository::class.java),
             runRepository = runRepository,
             syncWithSiteService = mock(SyncWithSiteService::class.java),
+            transactionManager = transactionManager(),
         )
 
     @Test
@@ -79,7 +93,6 @@ class CourseSyncServiceTest {
         assertThat(service.captureCartSnapshotIfDue(target, beforeChange)).isNull()
         verify(excelClient, never()).downloadExcel(2026, Semester.FALL)
 
-        `when`(cartSnapshotRunRepository.existsByYearAndSemester(2026, Semester.FALL)).thenReturn(false)
         `when`(excelClient.downloadExcel(2026, Semester.FALL)).thenReturn(byteArrayOf(1))
         val successfulSnapshotService =
             object : CourseCartSnapshotService(
@@ -95,14 +108,14 @@ class CourseSyncServiceTest {
             }
 
         assertThat(createService(successfulSnapshotService).captureCartSnapshotIfDue(target, afterChange)).isEqualTo(12)
-        val runCaptor = ArgumentCaptor.forClass(CourseCartSnapshotRun::class.java)
-        verify(cartSnapshotRunRepository).save(runCaptor.capture())
-        assertThat(runCaptor.value.capturedAt).isEqualTo(afterChange)
+        assertThat(mockingDetails(cartSnapshotRunRepository).invocations.map { it.method.name })
+            .contains("insertPendingClaim", "complete")
     }
 
     @Test
     fun `cart snapshot is skipped when the term was already captured`() {
-        `when`(cartSnapshotRunRepository.existsByYearAndSemester(2026, Semester.FALL)).thenReturn(true)
+        insertClaimResult = 0
+        reclaimClaimResult = 0
 
         assertThat(service.captureCartSnapshotIfDue(target(), LocalDateTime.of(2026, 8, 28, 9, 0))).isNull()
         verify(excelClient, never()).downloadExcel(2026, Semester.FALL)
@@ -122,7 +135,6 @@ class CourseSyncServiceTest {
                     file: MultipartFile,
                 ): Int = throw IllegalStateException("capture failed")
             }
-        `when`(cartSnapshotRunRepository.existsByYearAndSemester(2026, Semester.FALL)).thenReturn(false)
         `when`(excelClient.downloadExcel(2026, Semester.FALL)).thenReturn(byteArrayOf(1))
 
         assertThatThrownBy {
@@ -131,12 +143,9 @@ class CourseSyncServiceTest {
                 LocalDateTime.of(2026, 8, 28, 9, 0),
             )
         }.isInstanceOf(IllegalStateException::class.java)
-        assertThat(
-            org.mockito.Mockito
-                .mockingDetails(cartSnapshotRunRepository)
-                .invocations
-                .map { it.method.name },
-        ).doesNotContain("save")
+        assertThat(mockingDetails(cartSnapshotRunRepository).invocations.map { it.method.name })
+            .contains("fail")
+            .doesNotContain("complete")
     }
 
     private fun target() =
@@ -147,6 +156,16 @@ class CourseSyncServiceTest {
             firstCourseChangeAt = LocalDateTime.of(2026, 8, 28, 9, 0),
             lastCourseChangeAt = LocalDateTime.of(2026, 9, 7, 23, 59),
         )
+
+    private fun transactionManager() =
+        object : PlatformTransactionManager {
+            override fun getTransaction(definition: TransactionDefinition?): TransactionStatus =
+                SimpleTransactionStatus()
+
+            override fun commit(status: TransactionStatus) = Unit
+
+            override fun rollback(status: TransactionStatus) = Unit
+        }
 }
 
 class CourseServiceSearchTargetTest {

@@ -1,7 +1,7 @@
 package com.wafflestudio.team8server.course.sync
 
 import com.wafflestudio.team8server.common.exception.CourseSyncAlreadyRunningException
-import com.wafflestudio.team8server.course.model.CourseCartSnapshotRun
+import com.wafflestudio.team8server.course.model.CourseCartSnapshotRunStatus
 import com.wafflestudio.team8server.course.model.Semester
 import com.wafflestudio.team8server.course.repository.CourseCartSnapshotRunRepository
 import com.wafflestudio.team8server.course.service.CourseCartSnapshotService
@@ -16,8 +16,11 @@ import com.wafflestudio.team8server.syncwithsite.service.SugangPeriodParser
 import com.wafflestudio.team8server.syncwithsite.service.SyncWithSiteService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.LocalDateTime
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 
 @Service
@@ -30,9 +33,15 @@ class CourseSyncService(
     private val settingRepository: CourseSyncSettingRepository,
     private val runRepository: CourseSyncRunRepository,
     private val syncWithSiteService: SyncWithSiteService,
+    transactionManager: PlatformTransactionManager,
 ) {
     private val log = LoggerFactory.getLogger(CourseSyncService::class.java)
     private val running = AtomicBoolean(false)
+    private val transactionTemplate = TransactionTemplate(transactionManager)
+
+    companion object {
+        private const val CART_SNAPSHOT_CLAIM_TIMEOUT_MINUTES = 30L
+    }
 
     @Transactional
     fun enableAuto(): CourseSyncSetting {
@@ -126,6 +135,12 @@ class CourseSyncService(
     fun runCartSnapshotOnce(
         year: Int,
         semester: Semester,
+    ): Int = runCartSnapshot(year, semester) {}
+
+    private fun runCartSnapshot(
+        year: Int,
+        semester: Semester,
+        afterCapture: (Int) -> Unit,
     ): Int {
         if (!running.compareAndSet(false, true)) {
             throw CourseSyncAlreadyRunningException()
@@ -141,7 +156,14 @@ class CourseSyncService(
                     name = "file",
                     originalFilename = "courses_${year}_${semester.name}.xls",
                 )
-            val captured = courseCartSnapshotService.capture(year, semester, mf)
+            val captured =
+                requireNotNull(
+                    transactionTemplate.execute {
+                        val count = courseCartSnapshotService.capture(year, semester, mf)
+                        afterCapture(count)
+                        count
+                    },
+                )
 
             log.info(
                 "Course cart snapshot success (year={}, semester={}, rows={})",
@@ -161,24 +183,61 @@ class CourseSyncService(
     ): Int? {
         val firstCourseChangeAt = target.firstCourseChangeAt ?: return null
         if (now.isBefore(firstCourseChangeAt)) return null
-        if (
-            courseCartSnapshotRunRepository.existsByYearAndSemester(
-                target.year,
-                target.semester,
-            )
-        ) {
-            return null
-        }
+        val claimToken = UUID.randomUUID().toString()
+        if (!claimCartSnapshot(target.year, target.semester, claimToken, now)) return null
 
-        val captured = runCartSnapshotOnce(target.year, target.semester)
-        courseCartSnapshotRunRepository.save(
-            CourseCartSnapshotRun(
+        return try {
+            runCartSnapshot(target.year, target.semester) {
+                check(
+                    courseCartSnapshotRunRepository.complete(
+                        year = target.year,
+                        semester = target.semester,
+                        claimToken = claimToken,
+                        capturedAt = now,
+                        pending = CourseCartSnapshotRunStatus.PENDING,
+                        success = CourseCartSnapshotRunStatus.SUCCESS,
+                    ) == 1,
+                ) { "Course cart snapshot claim was lost" }
+            }
+        } catch (e: Exception) {
+            courseCartSnapshotRunRepository.fail(
                 year = target.year,
                 semester = target.semester,
-                capturedAt = now,
-            ),
-        )
-        return captured
+                claimToken = claimToken,
+                message = (e.message ?: e.javaClass.simpleName).take(500),
+                pending = CourseCartSnapshotRunStatus.PENDING,
+                failed = CourseCartSnapshotRunStatus.FAILED,
+            )
+            throw e
+        }
+    }
+
+    private fun claimCartSnapshot(
+        year: Int,
+        semester: Semester,
+        claimToken: String,
+        now: LocalDateTime,
+    ): Boolean {
+        if (
+            courseCartSnapshotRunRepository.insertPendingClaim(
+                year = year,
+                semester = semester.name,
+                claimToken = claimToken,
+                claimedAt = now,
+            ) == 1
+        ) {
+            return true
+        }
+
+        return courseCartSnapshotRunRepository.reclaim(
+            year = year,
+            semester = semester,
+            claimToken = claimToken,
+            claimedAt = now,
+            staleBefore = now.minusMinutes(CART_SNAPSHOT_CLAIM_TIMEOUT_MINUTES),
+            pending = CourseCartSnapshotRunStatus.PENDING,
+            failed = CourseCartSnapshotRunStatus.FAILED,
+        ) == 1
     }
 
     private fun CourseSyncSetting.copyFrom(prev: CourseSyncSetting): CourseSyncSetting =
