@@ -69,5 +69,7 @@ class CourseSyncSchedulerTest {
         CourseSyncScheduler(inactiveService).tick()
 
         verify(inactiveService, never()).runOnce(2026, Semester.FALL)
+        assertThat(mockingDetails(inactiveService).invocations.map { it.method.name })
+            .contains("captureCartSnapshotIfDue")
     }
 }

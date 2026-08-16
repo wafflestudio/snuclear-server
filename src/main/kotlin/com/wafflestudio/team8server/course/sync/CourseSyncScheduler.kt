@@ -20,9 +20,9 @@ class CourseSyncScheduler(
             return
         }
 
-        if (!service.shouldRunAutomatically(target)) return
-
-        service.runOnce(target.year, target.semester)
+        if (service.shouldRunAutomatically(target)) {
+            service.runOnce(target.year, target.semester)
+        }
         service.captureCartSnapshotIfDue(target)?.let { captured ->
             log.info("Automatic course cart snapshot success (rows={})", captured)
         }
