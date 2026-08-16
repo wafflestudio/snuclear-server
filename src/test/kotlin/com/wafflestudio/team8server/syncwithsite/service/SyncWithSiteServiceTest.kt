@@ -10,12 +10,18 @@ import com.wafflestudio.team8server.syncwithsite.repository.SugangPeriodSnapshot
 import com.wafflestudio.team8server.syncwithsite.repository.SyncWithSiteRunRepository
 import com.wafflestudio.team8server.syncwithsite.repository.SyncWithSiteSettingRepository
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
+import org.mockito.Mockito.RETURNS_DEFAULTS
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.mockingDetails
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.TransactionStatus
+import org.springframework.transaction.support.SimpleTransactionStatus
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.json.JsonMapper
 import tools.jackson.module.kotlin.KotlinModule
@@ -100,14 +106,63 @@ class SyncWithSiteServiceTest {
             .doesNotContain("save")
     }
 
+    @Test
+    fun `snapshot failure rolls back success before recording failure`() {
+        val crawled = period("장바구니", "수강신청변경")
+        val transactionManager = RecordingTransactionManager()
+        val localRunRepository =
+            mock(SyncWithSiteRunRepository::class.java) { invocation ->
+                when (invocation.method.name) {
+                    "save" -> invocation.arguments[0]
+                    "findAllByStatusOrderByStartedAtAsc" -> listOf(run(crawled))
+                    else -> RETURNS_DEFAULTS.answer(invocation)
+                }
+            }
+        val failingSnapshotRepository =
+            mock(SugangPeriodSnapshotRepository::class.java) { invocation ->
+                when (invocation.method.name) {
+                    "save" -> throw IllegalStateException("snapshot failed")
+                    else -> RETURNS_DEFAULTS.answer(invocation)
+                }
+            }
+        val service =
+            object : SyncWithSiteService(
+                settingRepository,
+                localRunRepository,
+                failingSnapshotRepository,
+                objectMapper,
+                transactionManager,
+            ) {
+                override fun crawlSugangPeriod(): SugangPeriodResponse = crawled
+            }
+
+        assertThatThrownBy { service.runOnce() }
+            .isInstanceOf(IllegalStateException::class.java)
+        assertThat(transactionManager.rollbacks).isEqualTo(1)
+        assertThat(
+            mockingDetails(localRunRepository)
+                .invocations
+                .filter { it.method.name == "save" }
+                .map { (it.arguments[0] as SyncWithSiteRun).status },
+        ).containsExactly(SyncWithSiteRunStatus.SUCCESS, SyncWithSiteRunStatus.FAILED)
+    }
+
     private fun service(crawled: SugangPeriodResponse? = null): SyncWithSiteService =
         if (crawled == null) {
-            SyncWithSiteService(settingRepository, runRepository, snapshotRepository, objectMapper)
+            SyncWithSiteService(settingRepository, runRepository, snapshotRepository, objectMapper, transactionManager())
         } else {
-            object : SyncWithSiteService(settingRepository, runRepository, snapshotRepository, objectMapper) {
+            object : SyncWithSiteService(
+                settingRepository,
+                runRepository,
+                snapshotRepository,
+                objectMapper,
+                transactionManager(),
+            ) {
                 override fun crawlSugangPeriod(): SugangPeriodResponse = crawled
             }
         }
+
+    private fun transactionManager(): PlatformTransactionManager = RecordingTransactionManager()
 
     private fun period(vararg categories: String): SugangPeriodResponse =
         SugangPeriodResponse(
@@ -131,5 +186,18 @@ class SyncWithSiteServiceTest {
             finishedAt = now,
             dumpedData = objectMapper.writeValueAsString(period),
         )
+    }
+
+    private class RecordingTransactionManager : PlatformTransactionManager {
+        var rollbacks = 0
+
+        override fun getTransaction(definition: TransactionDefinition?): TransactionStatus =
+            SimpleTransactionStatus()
+
+        override fun commit(status: TransactionStatus) = Unit
+
+        override fun rollback(status: TransactionStatus) {
+            rollbacks++
+        }
     }
 }

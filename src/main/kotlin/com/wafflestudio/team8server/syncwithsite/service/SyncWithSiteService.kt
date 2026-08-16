@@ -14,7 +14,9 @@ import org.jsoup.nodes.TextNode
 import org.jsoup.select.Elements
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.ObjectMapper
 import java.time.LocalDateTime
 import java.util.concurrent.atomic.AtomicBoolean
@@ -25,9 +27,11 @@ class SyncWithSiteService(
     private val runRepository: SyncWithSiteRunRepository,
     private val snapshotRepository: SugangPeriodSnapshotRepository,
     private val objectMapper: ObjectMapper,
+    transactionManager: PlatformTransactionManager,
 ) {
     private val log = LoggerFactory.getLogger(SyncWithSiteService::class.java)
     private val running = AtomicBoolean(false)
+    private val transactionTemplate = TransactionTemplate(transactionManager)
 
     companion object {
         private const val SUGANG_URL = "https://sugang.snu.ac.kr/sugang/co/co010.action"
@@ -158,17 +162,18 @@ class SyncWithSiteService(
             // Serialize the values
             val dumpedJson = objectMapper.writeValueAsString(result)
 
-            // Save results to the DB
-            runRepository.save(
-                SyncWithSiteRun(
-                    status = SyncWithSiteRunStatus.SUCCESS,
-                    startedAt = startedAt,
-                    finishedAt = LocalDateTime.now(),
-                    dumpedData = dumpedJson,
-                    message = null,
-                ),
-            )
-            saveSugangPeriodSnapshot(result)
+            transactionTemplate.executeWithoutResult {
+                runRepository.save(
+                    SyncWithSiteRun(
+                        status = SyncWithSiteRunStatus.SUCCESS,
+                        startedAt = startedAt,
+                        finishedAt = LocalDateTime.now(),
+                        dumpedData = dumpedJson,
+                        message = null,
+                    ),
+                )
+                saveSugangPeriodSnapshot(result)
+            }
             log.info("SyncWithSite sync success")
         } catch (e: Exception) {
             // Save Error logs to the DB
