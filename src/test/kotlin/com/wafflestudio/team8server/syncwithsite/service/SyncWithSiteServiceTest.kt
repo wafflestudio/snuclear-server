@@ -191,8 +191,7 @@ class SyncWithSiteServiceTest {
     private class RecordingTransactionManager : PlatformTransactionManager {
         var rollbacks = 0
 
-        override fun getTransaction(definition: TransactionDefinition?): TransactionStatus =
-            SimpleTransactionStatus()
+        override fun getTransaction(definition: TransactionDefinition?): TransactionStatus = SimpleTransactionStatus()
 
         override fun commit(status: TransactionStatus) = Unit
 

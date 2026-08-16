@@ -159,8 +159,7 @@ class CourseSyncServiceTest {
 
     private fun transactionManager() =
         object : PlatformTransactionManager {
-            override fun getTransaction(definition: TransactionDefinition?): TransactionStatus =
-                SimpleTransactionStatus()
+            override fun getTransaction(definition: TransactionDefinition?): TransactionStatus = SimpleTransactionStatus()
 
             override fun commit(status: TransactionStatus) = Unit
 
