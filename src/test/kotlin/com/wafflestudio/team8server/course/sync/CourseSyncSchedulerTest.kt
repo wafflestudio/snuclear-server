@@ -72,4 +72,23 @@ class CourseSyncSchedulerTest {
         assertThat(mockingDetails(inactiveService).invocations.map { it.method.name })
             .contains("captureCartSnapshotIfDue")
     }
+
+    @Test
+    fun `tick checks the cart snapshot when course sync fails`() {
+        val target = ParsedSugangPeriod(2026, Semester.FALL, null, null, null)
+        val failingService =
+            mock(CourseSyncService::class.java) { invocation ->
+                when (invocation.method.name) {
+                    "isEnabled", "shouldRunAutomatically" -> true
+                    "automaticTarget" -> target
+                    "runOnce" -> throw IllegalStateException("sync failed")
+                    else -> RETURNS_DEFAULTS.answer(invocation)
+                }
+            }
+
+        CourseSyncScheduler(failingService).tick()
+
+        assertThat(mockingDetails(failingService).invocations.map { it.method.name })
+            .contains("captureCartSnapshotIfDue")
+    }
 }

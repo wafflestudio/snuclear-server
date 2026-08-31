@@ -21,10 +21,18 @@ class CourseSyncScheduler(
         }
 
         if (service.shouldRunAutomatically(target)) {
-            service.runOnce(target.year, target.semester)
+            try {
+                service.runOnce(target.year, target.semester)
+            } catch (e: Exception) {
+                log.error("Automatic course sync failed", e)
+            }
         }
-        service.captureCartSnapshotIfDue(target)?.let { captured ->
-            log.info("Automatic course cart snapshot success (rows={})", captured)
+        try {
+            service.captureCartSnapshotIfDue(target)?.let { captured ->
+                log.info("Automatic course cart snapshot success (rows={})", captured)
+            }
+        } catch (e: Exception) {
+            log.error("Automatic course cart snapshot failed", e)
         }
     }
 }

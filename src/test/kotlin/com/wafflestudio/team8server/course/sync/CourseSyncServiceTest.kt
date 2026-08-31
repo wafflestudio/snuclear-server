@@ -71,10 +71,11 @@ class CourseSyncServiceTest {
         )
 
     @Test
-    fun `automatic sync runs for a new term or inside the active window`() {
+    fun `automatic sync runs for a new term or inside the active window until the retry deadline`() {
         val target = target()
         val beforeSchedule = LocalDateTime.of(2026, 7, 31, 23, 59)
         val duringSchedule = LocalDateTime.of(2026, 8, 15, 0, 0)
+        val afterDeadline = LocalDateTime.of(2026, 9, 9, 0, 0)
 
         `when`(runRepository.existsByStatusAndYearAndSemester(CourseSyncRunStatus.SUCCESS, 2026, Semester.FALL))
             .thenReturn(false, true, true)
@@ -82,6 +83,7 @@ class CourseSyncServiceTest {
         assertThat(service.shouldRunAutomatically(target, beforeSchedule)).isTrue()
         assertThat(service.shouldRunAutomatically(target, beforeSchedule)).isFalse()
         assertThat(service.shouldRunAutomatically(target, duringSchedule)).isTrue()
+        assertThat(service.shouldRunAutomatically(target, afterDeadline)).isFalse()
     }
 
     @Test
@@ -118,6 +120,15 @@ class CourseSyncServiceTest {
         reclaimClaimResult = 0
 
         assertThat(service.captureCartSnapshotIfDue(target(), LocalDateTime.of(2026, 8, 28, 9, 0))).isNull()
+        verify(excelClient, never()).downloadExcel(2026, Semester.FALL)
+    }
+
+    @Test
+    fun `automatic retries stop after the change period grace window`() {
+        val afterDeadline = LocalDateTime.of(2026, 9, 9, 0, 0)
+
+        assertThat(service.shouldRunAutomatically(target(), afterDeadline)).isFalse()
+        assertThat(service.captureCartSnapshotIfDue(target(), afterDeadline)).isNull()
         verify(excelClient, never()).downloadExcel(2026, Semester.FALL)
     }
 

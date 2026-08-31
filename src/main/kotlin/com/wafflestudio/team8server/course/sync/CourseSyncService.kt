@@ -41,6 +41,7 @@ class CourseSyncService(
 
     companion object {
         private const val CART_SNAPSHOT_CLAIM_TIMEOUT_MINUTES = 30L
+        private const val AUTOMATIC_RETRY_GRACE_HOURS = 24L
     }
 
     @Transactional
@@ -71,13 +72,17 @@ class CourseSyncService(
     fun shouldRunAutomatically(
         target: ParsedSugangPeriod,
         now: LocalDateTime = LocalDateTime.now(),
-    ): Boolean =
-        target.isCourseSyncActiveAt(now) ||
+    ): Boolean {
+        val retryDeadline = target.lastCourseChangeAt?.plusHours(AUTOMATIC_RETRY_GRACE_HOURS) ?: return false
+        if (now.isAfter(retryDeadline)) return false
+
+        return target.isCourseSyncActiveAt(now) ||
             !runRepository.existsByStatusAndYearAndSemester(
                 CourseSyncRunStatus.SUCCESS,
                 target.year,
                 target.semester,
             )
+    }
 
     fun runOnce(
         year: Int,
@@ -182,7 +187,8 @@ class CourseSyncService(
         now: LocalDateTime = LocalDateTime.now(),
     ): Int? {
         val firstCourseChangeAt = target.firstCourseChangeAt ?: return null
-        if (now.isBefore(firstCourseChangeAt)) return null
+        val retryDeadline = target.lastCourseChangeAt?.plusHours(AUTOMATIC_RETRY_GRACE_HOURS) ?: return null
+        if (now.isBefore(firstCourseChangeAt) || now.isAfter(retryDeadline)) return null
         val claimToken = UUID.randomUUID().toString()
         if (!claimCartSnapshot(target.year, target.semester, claimToken, now)) return null
 
