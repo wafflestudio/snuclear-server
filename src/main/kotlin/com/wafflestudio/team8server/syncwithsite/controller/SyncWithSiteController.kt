@@ -23,9 +23,9 @@ class SyncWithSiteController(
     private val syncWithSiteService: SyncWithSiteService,
 ) {
     @Operation(
-        summary = "캐시된 DB에서 수강신청 기간 정보 조회",
+        summary = "보존된 학기별 수강신청 기간 정보 조회",
         description =
-            "이전에 크롤링되어 캐시된 DB에서 이번 학기 수강신청 기간 정보를 가져옵니다." +
+            "이전에 크롤링되어 보존된 학기별 일정 정보를 가져옵니다." +
                 "실패 시 크롤링을 수행하여 수강신청 기간 정보를 가져옵니다.",
     )
     @ApiResponses(

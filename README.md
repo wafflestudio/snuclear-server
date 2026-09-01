@@ -67,10 +67,11 @@
 | | `POST /api/auth/logout` | 로그아웃 |
 | 강의 | `GET /api/courses/search` | 강의 검색 |
 | | `POST /api/courses/import` | 강의 데이터 임포트 (Admin) |
-| 강의 동기화 | `POST /api/courses/course-sync/auto/enable` | 자동 동기화 활성화 (Admin) |
+| 강의 동기화 | `POST /api/courses/course-sync/auto/enable` | 저장된 수강신청 일정을 기준으로 자동 동기화 활성화 (Admin) |
 | | `POST /api/courses/course-sync/auto/disable` | 자동 동기화 비활성화 (Admin) |
 | | `GET /api/courses/course-sync/auto` | 자동 동기화 상태 조회 (Admin) |
 | | `POST /api/courses/course-sync/run` | 즉시 동기화 실행 (Admin) |
+| 수강신청 일정 | `GET /api/v1/syncwithsite/sugang-period` | 학기별로 보존·병합한 전체 일정 정본 조회 |
 | 공지사항 | `GET /api/notices` | 공지사항 목록 조회 (고정글 우선) |
 | | `GET /api/notices/{noticeId}` | 공지사항 상세 조회 |
 | | `POST /api/notices` | 공지사항 작성 (Admin) |
@@ -94,6 +95,8 @@
 | | `GET /api/mypage/practice-sessions/{practiceLogId}` | 연습 세션 상세 조회 |
 | | `DELETE /api/mypage` | 회원 탈퇴 |
 
+수강신청 일정 API는 지난 항목을 제거하지 않은 전체 정본을 반환합니다. 화면에서 현재 일정만 보여줄 때는 클라이언트가 현재 날짜를 기준으로 필터링해야 합니다. 강의 검색과 자동 강의 동기화는 이 정본의 학기를 사용합니다. 자동 동기화는 정본의 일정 기간에서 실행하며, 수강신청 변경기간 시작 이후 학기별 장바구니 값을 한 번만 스냅샷합니다.
+
 ## 프로젝트 구조
 
 ```
@@ -102,6 +105,7 @@ src/main/kotlin/com/wafflestudio/team8server/
 ├── common/          # 공통 유틸리티 (예외, 인증, DTO)
 ├── user/            # 사용자 관리 (회원가입, 로그인, 마이페이지)
 ├── course/          # 강의 관리 (검색, 임포트, 동기화)
+├── syncwithsite/    # 수강신청 일정 크롤링·학기별 정본
 ├── notice/          # 공지사항 관리
 ├── practice/        # 수강신청 연습 시뮬레이션
 ├── preenroll/       # 장바구니
@@ -111,7 +115,7 @@ src/main/resources/
 ├── application.yaml              # 기본 설정
 ├── application-local.yaml        # 로컬 환경 설정
 ├── application-prod.yaml         # 프로덕션 환경 설정
-└── db/migration/                 # Flyway 마이그레이션 (V1~V13)
+└── db/migration/                 # Flyway 마이그레이션 (V1~V27)
 ```
 
 ## 시작하기
