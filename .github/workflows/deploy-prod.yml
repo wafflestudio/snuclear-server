@@ -3,6 +3,7 @@ name: Deploy-prod
 on:
   push:
     branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -10,5 +11,7 @@ jobs:
     with:
       ocir_repository: snuclear-prod/snuclear-server
       dockerfile: Dockerfile
+      gitops_overlay_path: argocd/snuclear-prod
     secrets:
       OCI_AUTH_TOKEN: ${{ secrets.OCI_AUTH_TOKEN }}
+      DEPLOYER_APP_PRIVATE_KEY: ${{ secrets.DEPLOYER_APP_PRIVATE_KEY }}
